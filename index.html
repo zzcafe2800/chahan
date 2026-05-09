@@ -1,1 +1,1162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<script>
+// kill stale service workers and caches before anything else loads
+(function(){
+  try{
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.getRegistrations()
+        .then(r=>r.forEach(x=>x.unregister())).catch(()=>{});
+    }
+    if(window.caches && caches.keys){
+      caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))).catch(()=>{});
+    }
+  }catch(e){}
+  console.log('%c[chahan] v.0.1 loaded', 'color:#d9b88a;font-weight:bold');
 
+  // visible diagnostics — surface JS errors as a red banner so the user can copy them
+  window.__bootStep = 'init';
+  window.addEventListener('error', function(ev){
+    try{
+      var msg = (ev && ev.error && ev.error.stack) ? ev.error.stack : (ev.message || 'unknown error');
+      var box = document.getElementById('__errBox');
+      if(!box){
+        box = document.createElement('div');
+        box.id = '__errBox';
+        box.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#600;color:#fff;font:11px/1.5 monospace;padding:10px 14px;z-index:99999;white-space:pre-wrap;box-shadow:0 4px 16px rgba(0,0,0,.6);max-height:60vh;overflow:auto';
+        (document.body || document.documentElement).appendChild(box);
+      }
+      box.textContent = '[JS ERROR @ step=' + window.__bootStep + ']\n' + msg;
+    }catch(e){}
+  });
+  window.addEventListener('unhandledrejection', function(ev){
+    console.error('[chahan] unhandled promise rejection:', ev.reason);
+  });
+})();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>三人でチャーハン作り — 第１回コスプレイベント『天気の子』非公式</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23080a10'/%3E%3Cpath d='M50 28 L50 36 M14 60 Q14 36 50 32 Q86 36 86 60 M50 36 L50 88 Q50 95 44 95 Q38 95 38 90' stroke='white' fill='none' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@200;300;400;500;700&family=Cormorant+Garamond:wght@300;400&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --ink:#f4f6fb;
+    --ink-soft:rgba(244,246,251,.72);
+    --ink-faint:rgba(244,246,251,.32);
+    --bg:#080a10;
+    --warm:#d9b88a;
+    --serif:'Noto Serif JP','Hiragino Mincho ProN','YuMincho',serif;
+    --latin:'Cormorant Garamond',serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--serif);-webkit-tap-highlight-color:transparent}
+  body{position:relative;user-select:none;cursor:default}
+  button{font-family:inherit}
+
+  /* ---------- background layers ---------- */
+  .bg-fallback{
+    position:fixed;inset:0;z-index:0;
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(60,80,110,.35), transparent 55%),
+      radial-gradient(ellipse at 75% 80%, rgba(40,55,80,.45), transparent 60%),
+      linear-gradient(180deg, #050709 0%, #0a0e15 50%, #060810 100%);
+  }
+  /* per-player bg shown during play */
+  .player-bg{
+    position:fixed;inset:0;z-index:1;
+    background:#000 center/cover no-repeat;
+    opacity:0;transition:opacity 1.6s ease, background-image 1.2s ease;
+    filter:saturate(.9) brightness(.55);
+    pointer-events:none;
+  }
+  .player-bg.show{opacity:.85}
+
+  /* rain canvas */
+  #rain-canvas{position:fixed;inset:0;z-index:3;pointer-events:none}
+
+  /* vignette + grain */
+  .vignette{position:fixed;inset:0;z-index:5;pointer-events:none;background:radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,.55) 85%, rgba(0,0,0,.85) 100%)}
+  .grain{
+    position:fixed;inset:-50%;z-index:6;pointer-events:none;opacity:.06;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='.6'/></svg>");
+    animation:grain 6s steps(6) infinite;
+  }
+  @keyframes grain{0%{transform:translate(0,0)}20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-3%)}60%{transform:translate(-2%,1%)}80%{transform:translate(3%,-1%)}100%{transform:translate(0,0)}}
+
+  /* version tag */
+  .ver{position:fixed;top:6px;right:8px;z-index:9999;font-family:var(--latin);font-weight:300;font-size:10px;line-height:1;color:rgba(255,255,255,0.5);letter-spacing:.25em;pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,.8)}
+
+  /* ---------- back-to-event button ---------- */
+  .back-home{
+    position:fixed;top:24px;left:28px;z-index:100;
+    font-family:var(--latin);font-weight:300;font-size:11px;letter-spacing:.4em;
+    color:var(--ink-faint);text-transform:uppercase;
+    background:transparent;border:0;padding:8px 12px;cursor:pointer;
+    transition:color .3s ease;
+  }
+  .back-home::before{content:'← ';opacity:.7}
+  .back-home:hover{color:var(--ink)}
+
+  /* ---------- screen container ---------- */
+  .game{position:relative;z-index:10;width:100%;height:100vh;color:var(--ink)}
+
+  .gscr{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:24px;text-align:center;
+    opacity:0;pointer-events:none;transition:opacity .8s ease;
+  }
+  .gscr.in{opacity:1;pointer-events:auto}
+
+  /* ---------- shared buttons ---------- */
+  .btn-primary{
+    background:transparent;border:1px solid var(--ink-soft);color:var(--ink);
+    font-family:var(--serif);font-weight:300;font-size:13px;letter-spacing:.45em;
+    padding:14px 36px;cursor:pointer;transition:all .35s ease;
+  }
+  .btn-primary:hover{background:rgba(244,246,251,.08);border-color:var(--ink)}
+  .btn-primary:disabled{opacity:.3;cursor:not-allowed}
+
+  .btn-action{
+    background:transparent;border:1px solid var(--ink);color:var(--ink);
+    font-family:var(--serif);font-weight:300;font-size:14px;letter-spacing:.5em;
+    padding:18px 56px;cursor:pointer;transition:all .35s ease;min-width:200px;
+  }
+  .btn-action:hover{background:rgba(244,246,251,.1)}
+  .btn-action.stop{border-color:#e8a8a8;color:#e8a8a8}
+  .btn-action.stop:hover{background:rgba(232,168,168,.12)}
+  .btn-action:disabled{opacity:.3;cursor:not-allowed}
+
+  /* ---------- screen: name input ---------- */
+  .name-form{display:flex;flex-direction:column;align-items:center;gap:32px}
+  .name-overline{
+    font-family:var(--latin);font-weight:300;font-size:10px;letter-spacing:.55em;
+    color:var(--ink-faint);text-transform:uppercase;margin-bottom:6px;
+  }
+  .name-prompt{font-weight:300;font-size:clamp(18px,2.4vw,28px);letter-spacing:.4em;color:var(--ink);text-shadow:0 0 18px rgba(0,0,0,.7)}
+  .name-input{
+    width:min(420px, 80vw);background:transparent;border:0;border-bottom:1px solid var(--ink-faint);
+    color:var(--ink);font-family:var(--serif);font-weight:300;font-size:24px;letter-spacing:.2em;
+    text-align:center;padding:14px 8px;outline:none;transition:border-color .3s ease;
+  }
+  .name-input:focus{border-color:var(--ink)}
+
+  /* ---------- screen: how to play ---------- */
+  .howto{display:flex;flex-direction:column;align-items:center;gap:28px;width:100%;max-width:1100px;padding:80px 24px 30px}
+  .howto-overline{font-family:var(--latin);font-weight:300;font-size:10px;letter-spacing:.6em;color:var(--ink-faint);text-transform:uppercase}
+  .howto-img{
+    width:min(820px, 92vw);aspect-ratio:16/10;
+    background:#1a1f2a center/contain no-repeat;background-image:url('chahan-howto.png');
+    border:1px solid rgba(244,246,251,.1);box-shadow:0 12px 40px rgba(0,0,0,.6);
+  }
+  .howto-actions{display:flex;justify-content:flex-end;width:min(820px, 92vw)}
+
+  /* ---------- screen: lobby ---------- */
+  .lobby{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px 40px}
+  .lobby-title{font-weight:300;font-size:clamp(24px,3.6vw,42px);letter-spacing:.45em;margin-bottom:14px;text-shadow:0 0 20px rgba(0,0,0,.8)}
+  .lobby-sub{font-weight:300;font-size:clamp(13px,1.6vw,16px);letter-spacing:.35em;color:var(--ink-soft);margin-bottom:60px}
+  .slots{display:flex;gap:48px;align-items:flex-start}
+  .slot{display:flex;flex-direction:column;align-items:center;gap:14px;width:160px}
+  .slot-role{font-weight:300;font-size:13px;letter-spacing:.35em;color:var(--ink-soft);text-align:center;line-height:1.6;min-height:42px}
+  .slot-role .role-tag{display:block;font-family:var(--latin);font-size:9px;letter-spacing:.5em;color:var(--ink-faint);text-transform:uppercase;margin-top:2px}
+  .slot-circle{
+    position:relative;width:130px;height:130px;border-radius:50%;
+    border:1px solid var(--ink-faint);background:rgba(20,24,32,.5);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    transition:all .4s ease;
+  }
+  .slot-circle:hover{border-color:var(--ink-soft);background:rgba(40,48,60,.55)}
+  .slot-circle.filled{border-color:var(--ink-soft);background:rgba(217,184,138,.08);cursor:default}
+  .slot-circle.mine{border-color:var(--warm);background:rgba(217,184,138,.18)}
+  .slot-circle .plus{font-family:var(--latin);font-size:32px;font-weight:300;color:var(--ink-soft);transition:color .3s ease}
+  .slot-circle:hover .plus{color:var(--ink)}
+  .slot-circle .pname{font-weight:300;font-size:14px;letter-spacing:.18em;color:var(--ink);text-align:center;padding:0 8px;word-break:break-word}
+  .slot-leave{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;border:1px solid var(--ink-faint);background:#0a0e15;color:var(--ink-soft);cursor:pointer;font-size:14px;line-height:1;display:none;align-items:center;justify-content:center}
+  .slot-circle.mine .slot-leave{display:flex}
+  .slot-leave:hover{border-color:var(--ink);color:var(--ink)}
+  .lobby-status{margin-top:60px;font-weight:300;font-size:14px;letter-spacing:.4em;color:var(--ink-soft);min-height:24px;text-align:center}
+  .lobby-status.ready{color:var(--warm);font-size:16px;letter-spacing:.5em;animation:readyPulse 1.4s ease-in-out infinite}
+  @keyframes readyPulse{0%,100%{opacity:.6}50%{opacity:1}}
+
+  /* ---------- screen: gameplay ---------- */
+  .play{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
+  .play-header{position:absolute;top:0;left:0;right:0;padding:20px 28px;display:flex;justify-content:center;gap:36px;flex-wrap:wrap}
+  .play-name-tag{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:96px;padding:8px 12px;border-radius:6px;transition:all .35s ease;background:rgba(0,0,0,.35);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+  .play-name-tag.active{background:rgba(217,184,138,.18);box-shadow:0 0 0 1px rgba(217,184,138,.4) inset}
+  .pn-tag{font-family:var(--latin);font-size:9px;letter-spacing:.4em;color:var(--ink-faint);text-transform:uppercase}
+  .pn-name{font-weight:300;font-size:13px;letter-spacing:.18em;color:var(--ink)}
+  .pn-status{font-size:10px;letter-spacing:.3em;color:var(--ink-soft);margin-top:2px}
+  .pn-score{font-family:var(--latin);font-size:13px;letter-spacing:.15em;color:var(--warm);margin-top:2px;min-height:14px}
+
+  .play-current{position:absolute;left:28px;top:50%;transform:translateY(-50%);text-align:left;background:rgba(0,0,0,.35);padding:18px 22px;border-radius:6px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+  .pc-label{font-family:var(--latin);font-size:10px;letter-spacing:.4em;color:var(--ink-faint);text-transform:uppercase;margin-bottom:8px}
+  .pc-name{font-weight:300;font-size:22px;letter-spacing:.18em;color:var(--ink);margin-bottom:18px}
+  .pc-total-label{font-family:var(--latin);font-size:9px;letter-spacing:.4em;color:var(--ink-faint);text-transform:uppercase;margin-bottom:4px}
+  .pc-total{font-family:var(--latin);font-size:36px;font-weight:300;color:var(--warm)}
+
+  .play-watch-banner{font-weight:300;font-size:14px;letter-spacing:.45em;color:var(--ink);text-shadow:0 0 14px rgba(0,0,0,.85);margin-bottom:14px;min-height:20px}
+  .play-target{font-weight:300;font-size:clamp(18px,2.4vw,28px);letter-spacing:.4em;color:var(--ink);text-shadow:0 0 18px rgba(0,0,0,.85);margin-bottom:24px}
+
+  .timer-wrap{position:relative;width:240px;height:240px;display:flex;align-items:center;justify-content:center;margin-bottom:32px;transition:opacity 1.2s ease}
+  .timer-wrap.hidden{opacity:0}
+  .timer-ring{position:absolute;inset:0;transform:rotate(-90deg)}
+  .timer-ring circle{fill:none;stroke-width:2}
+  .timer-ring .bg{stroke:rgba(244,246,251,.08)}
+  .timer-ring .fg{stroke:#7ec8d8;stroke-linecap:round;transition:stroke-dashoffset .1s linear}
+  .timer-num{font-family:var(--latin);font-weight:300;font-size:64px;color:var(--ink);letter-spacing:.05em;text-shadow:0 0 20px rgba(0,0,0,.8)}
+
+  .play-action{display:flex;flex-direction:column;gap:14px;align-items:center}
+  .play-watching{font-weight:300;font-size:13px;letter-spacing:.35em;color:var(--ink-soft);margin-top:24px;text-shadow:0 0 12px rgba(0,0,0,.85)}
+
+  .turn-result{margin-top:18px;font-weight:300;font-size:18px;letter-spacing:.3em;color:var(--ink);min-height:30px;text-shadow:0 0 12px rgba(0,0,0,.85)}
+  .turn-result .off,.turn-result .scr{font-family:var(--latin);font-size:24px;color:var(--warm)}
+
+  /* ---------- screen: results ---------- */
+  .results{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 20px;gap:20px;overflow:auto}
+  .results-headline{font-weight:300;font-size:clamp(28px,4vw,46px);letter-spacing:.5em;color:var(--ink);text-shadow:0 0 24px rgba(0,0,0,.8);opacity:0;transform:translateY(8px);transition:opacity 1.2s ease, transform 1.2s ease}
+  .results.in .results-headline{opacity:1;transform:translateY(0)}
+  .results-comment{font-weight:300;font-size:clamp(14px,1.8vw,18px);letter-spacing:.32em;color:var(--ink-soft);text-align:center;max-width:680px;opacity:0;transition:opacity 1.2s 1.5s ease;text-shadow:0 0 12px rgba(0,0,0,.85)}
+  .results.in .results-comment{opacity:1}
+  .results-img-wrap{position:relative;width:min(420px, 78vw);aspect-ratio:1/1.2;background:#1a1f2a center/cover no-repeat;border:1px solid rgba(244,246,251,.08);box-shadow:0 10px 40px rgba(0,0,0,.6);opacity:0;transform:scale(.97);transition:opacity 1.4s 2.2s ease, transform 1.4s 2.2s ease}
+  .results.in .results-img-wrap{opacity:1;transform:scale(1)}
+  .results-scores{display:flex;gap:30px;flex-wrap:wrap;justify-content:center;opacity:0;transition:opacity 1.2s 3s ease}
+  .results.in .results-scores{opacity:1}
+  .rs-block{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:90px}
+  .rs-block .rsl{font-family:var(--latin);font-size:9px;letter-spacing:.4em;color:var(--ink-faint);text-transform:uppercase}
+  .rs-block .rsv{font-family:var(--latin);font-size:24px;font-weight:300;color:var(--warm)}
+  .rs-block .rsn{font-size:11px;letter-spacing:.18em;color:var(--ink-soft)}
+  .rs-block.total .rsv{font-size:38px;color:var(--ink)}
+  .results-actions{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap;justify-content:center;opacity:0;transition:opacity 1.2s 3.6s ease}
+  .results.in .results-actions{opacity:1}
+
+  /* ---------- screen: photo composite ---------- */
+  .photo-screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 20px;gap:20px;overflow:auto}
+  .photo-h{font-weight:300;font-size:clamp(20px,2.6vw,28px);letter-spacing:.45em;margin-bottom:6px}
+  .photo-sub{font-weight:300;font-size:13px;letter-spacing:.3em;color:var(--ink-soft);margin-bottom:14px;text-align:center;max-width:560px;line-height:1.7}
+  .photo-stage{position:relative;width:min(640px, 92vw);aspect-ratio:4/3;background:#0a0d13 center/contain no-repeat;border:1px solid rgba(244,246,251,.1);overflow:hidden;display:flex;align-items:center;justify-content:center}
+  #photoCanvas{display:block;max-width:100%;max-height:100%}
+  .photo-actions{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+  .file-input-label{cursor:pointer}
+  #fileInput{display:none}
+
+  /* ---------- responsive ---------- */
+  @media (max-width:900px){
+    .play-current{position:static;transform:none;text-align:center;margin-bottom:14px;background:transparent;padding:0}
+    .play-header{flex-direction:row;gap:8px;padding:14px;justify-content:center}
+    .play-name-tag{min-width:0;padding:6px 10px}
+    .pn-name{font-size:11px}
+  }
+  @media (max-width:640px){
+    .back-home{top:14px;left:14px;font-size:10px;letter-spacing:.3em}
+    .lobby{padding-top:80px}
+    .slots{gap:14px}
+    .slot{width:auto}
+    .slot-circle{width:96px;height:96px}
+    .slot-role{font-size:11px;letter-spacing:.25em}
+    .timer-wrap{width:180px;height:180px}
+    .timer-num{font-size:46px}
+    .play-target{font-size:16px}
+    .results-img-wrap{width:88vw}
+  }
+
+  /* page fade-out before navigating away */
+  body.fade-out{opacity:0;transition:opacity .8s ease}
+</style>
+</head>
+<body>
+
+  <div class="ver">v.0.1</div>
+
+  <div class="bg-fallback"></div>
+  <div class="player-bg" id="playerBg"></div>
+  <canvas id="rain-canvas"></canvas>
+  <div class="grain"></div>
+  <div class="vignette"></div>
+
+  <button class="back-home" id="backHome">i v e n t に 戻 る</button>
+
+  <div class="game" id="game">
+
+    <!-- 1) name input -->
+    <div class="gscr in" id="scrName">
+      <div class="name-form">
+        <div class="name-overline">— first ·  introduce yourself —</div>
+        <div class="name-prompt">あ　な　た　の　名　前　は ？</div>
+        <input type="text" class="name-input" id="nameInput" maxlength="12" autocomplete="off" placeholder="">
+        <button class="btn-primary" id="nameSubmit" disabled>つ ぎ へ</button>
+      </div>
+    </div>
+
+    <!-- 2) how to play -->
+    <div class="gscr" id="scrHowto">
+      <div class="howto">
+        <div class="howto-overline">— how to play —</div>
+        <div class="howto-img" aria-label="遊び方"></div>
+        <div class="howto-actions">
+          <button class="btn-primary" id="playBtn">遊　ぶ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3) lobby (3 slots) -->
+    <div class="gscr" id="scrLobby">
+      <div class="lobby">
+        <div class="lobby-title" id="lobbyTitle">三 人 待 機 中</div>
+        <div class="lobby-sub">三 人 で チ ャ ー ハ ン を 作 ろ う ！</div>
+        <div class="slots" id="slots">
+          <!-- visual L-to-R: 3P (仕上げる), 2P (炒める), 1P (下ごしらえ) — i.e., 1P is rightmost -->
+          <div class="slot" data-slot="2">
+            <div class="slot-role">仕上げる担当<span class="role-tag">3P · finishing</span></div>
+            <div class="slot-circle" data-slot="2">
+              <span class="plus">＋</span>
+              <button class="slot-leave" data-slot="2" aria-label="抜ける">×</button>
+            </div>
+          </div>
+          <div class="slot" data-slot="1">
+            <div class="slot-role">炒める担当<span class="role-tag">2P · stir-fry</span></div>
+            <div class="slot-circle" data-slot="1">
+              <span class="plus">＋</span>
+              <button class="slot-leave" data-slot="1" aria-label="抜ける">×</button>
+            </div>
+          </div>
+          <div class="slot" data-slot="0">
+            <div class="slot-role">下ごしらえ担当<span class="role-tag">1P · prep</span></div>
+            <div class="slot-circle" data-slot="0">
+              <span class="plus">＋</span>
+              <button class="slot-leave" data-slot="0" aria-label="抜ける">×</button>
+            </div>
+          </div>
+        </div>
+        <div class="lobby-status" id="lobbyStatus">仲 間 を 待 っ て い ま す</div>
+      </div>
+    </div>
+
+    <!-- 4) play -->
+    <div class="gscr" id="scrPlay">
+      <div class="play">
+        <div class="play-header" id="playHeader"></div>
+        <div class="play-current" id="playCurrent">
+          <div class="pc-label">cooking</div>
+          <div class="pc-name" id="pcName">―</div>
+          <div class="pc-total-label">team total</div>
+          <div class="pc-total" id="pcTotal">0</div>
+        </div>
+        <div class="play-watch-banner" id="watchBanner"></div>
+        <div class="play-target">０ 秒 ぴ っ た り で 止 め ろ ！ ！</div>
+        <div class="timer-wrap" id="timerWrap">
+          <svg class="timer-ring" viewBox="0 0 100 100">
+            <circle class="bg" cx="50" cy="50" r="46"/>
+            <circle class="fg" id="timerFg" cx="50" cy="50" r="46" stroke-dasharray="289" stroke-dashoffset="0"/>
+          </svg>
+          <div class="timer-num" id="timerNum">100</div>
+        </div>
+        <div class="play-action">
+          <button class="btn-action" id="actionBtn">S T A R T</button>
+          <div class="play-watching" id="playWatching" style="display:none">― 観 戦 中 ―</div>
+          <div class="turn-result" id="turnResult"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5) results -->
+    <div class="gscr" id="scrResults">
+      <div class="results" id="resultsBox">
+        <div class="results-headline">結 果 発 表</div>
+        <div class="results-comment" id="rComment">―</div>
+        <div class="results-img-wrap" id="rImg"></div>
+        <div class="results-scores" id="rScores"></div>
+        <div class="results-actions">
+          <button class="btn-primary" id="toPhotoBtn">撮　影</button>
+          <button class="btn-primary" id="resultsHomeBtn">ホ ー ム へ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6) photo composite -->
+    <div class="gscr" id="scrPhoto">
+      <div class="photo-screen">
+        <div class="photo-h">撮 　 影</div>
+        <div class="photo-sub">赤い ● が入った写真を読み込んでください。<br>赤の部分を切り抜いて、結果画像を合成します。</div>
+        <div class="photo-stage">
+          <canvas id="photoCanvas"></canvas>
+        </div>
+        <div class="photo-actions">
+          <label class="btn-primary file-input-label" for="fileInput">画 像 を 読 み 込 む</label>
+          <input type="file" id="fileInput" accept="image/*">
+          <button class="btn-primary" id="savePhotoBtn" disabled>保　存</button>
+          <button class="btn-primary" id="photoHomeBtn">ホ ー ム へ</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+<!-- ============================== JS (module) ============================== -->
+<script type="module">
+"use strict";
+window.__bootStep = 'module-start';
+
+// =================================================================
+// CONFIG — adjust the URL below if your event home lives elsewhere
+// =================================================================
+const EVENT_HOME_URL = '../';   // relative path; if you serve elsewhere, set absolute URL like 'https://zzcafe2800.github.io/'
+
+// =================================================================
+// Firebase init
+// =================================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyAvLqQhgJlZLpyhfAYEdp38inFuIoUrmjg",
+  authDomain: "offev-3c70f.firebaseapp.com",
+  projectId: "offev-3c70f",
+  storageBucket: "offev-3c70f.firebasestorage.app",
+  messagingSenderId: "834131885181",
+  appId: "1:834131885181:web:a32518353d0e9627680514",
+  measurementId: "G-KB95QE8Y1V"
+};
+
+let fb = null;
+try{
+  window.__bootStep = 'firebase-import';
+  const [appMod, fsMod] = await Promise.all([
+    import("https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js"),
+    import("https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js")
+  ]);
+  const app = appMod.initializeApp(firebaseConfig);
+  const db = fsMod.getFirestore(app);
+  fb = Object.assign({ app, db }, fsMod);
+  console.log('[chahan][fb] ready');
+}catch(e){
+  console.error('[chahan][fb] failed to load:', e);
+}
+
+window.__bootStep = 'main-start';
+
+// =================================================================
+// helpers
+// =================================================================
+const $ = (id)=>document.getElementById(id);
+function uuid(){ return 'p_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+let myId;
+try{
+  myId = localStorage.getItem('chahan_pid');
+  if(!myId){ myId = uuid(); localStorage.setItem('chahan_pid', myId); }
+}catch(e){ myId = uuid(); }
+console.log('[chahan] myId =', myId);
+
+// =================================================================
+// state
+// =================================================================
+const ROLE_TAGS = ['1P','2P','3P'];
+const TIMER_TOTAL = 100;
+const TIMER_VISIBLE_UNTIL = 50; // visible while remaining > this many seconds
+
+let myName = '';
+let subState = 'name';        // name | howto | lobby | play | results | photo
+let currentGameId = null;
+let currentGameSnap = null;
+let mySlot = -1;
+let unsubGame = null;
+let timerHandle = null;
+let timerStopped = false;
+let resultsImageUrl = '';
+
+// =================================================================
+// navigation back to event home
+// =================================================================
+async function goEventHome(){
+  // If we're in a game, leave first so we don't leave a stale slot behind
+  try{
+    if(unsubGame){ unsubGame(); unsubGame = null; }
+    if(currentGameId && mySlot >= 0 && fb){
+      await leaveGame(currentGameId, myId);
+    }
+  }catch(e){}
+  document.body.classList.add('fade-out');
+  setTimeout(()=>{
+    try{
+      const ref = document.referrer;
+      if(ref && new URL(ref).hostname === location.hostname){
+        history.back();
+        return;
+      }
+    }catch(e){}
+    window.location.href = EVENT_HOME_URL;
+  }, 600);
+}
+$('backHome').addEventListener('click', goEventHome);
+
+// =================================================================
+// screen switching
+// =================================================================
+function showScreen(id){
+  document.querySelectorAll('.gscr').forEach(s=>s.classList.remove('in'));
+  $(id).classList.add('in');
+}
+
+// per-player background image (fades in during play, hidden otherwise)
+const playerBg = $('playerBg');
+function setPlayerBg(turnIdx){
+  if(turnIdx < 0 || turnIdx > 2){
+    playerBg.classList.remove('show');
+    return;
+  }
+  const file = ['1p.png','2p.png','3p.png'][turnIdx];
+  playerBg.style.backgroundImage = `url('${file}')`;
+  playerBg.classList.add('show');
+}
+function clearPlayerBg(){ playerBg.classList.remove('show'); }
+
+// =================================================================
+// 1) name input
+// =================================================================
+const nameInput = $('nameInput'), nameSubmit = $('nameSubmit');
+nameInput.addEventListener('input', ()=>{
+  nameSubmit.disabled = nameInput.value.trim().length === 0;
+});
+nameInput.addEventListener('keydown', e=>{
+  if(e.key === 'Enter' && !nameSubmit.disabled) nameSubmit.click();
+});
+nameSubmit.addEventListener('click', ()=>{
+  myName = nameInput.value.trim().slice(0, 12);
+  if(!myName) return;
+  subState = 'howto';
+  showScreen('scrHowto');
+});
+
+// =================================================================
+// 2) how to play
+// =================================================================
+$('playBtn').addEventListener('click', ()=>{
+  subState = 'lobby';
+  showScreen('scrLobby');
+  joinOrCreateGame();
+});
+
+// =================================================================
+// 3) lobby — Firebase real-time
+// =================================================================
+async function joinOrCreateGame(){
+  const status = $('lobbyStatus');
+  status.classList.remove('ready');
+  status.textContent = '通信を準備しています…';
+  if(!fb){
+    status.textContent = 'Firebase が読み込めません（CDNブロック or オフライン）';
+    return;
+  }
+  status.textContent = '仲 間 を 待 っ て い ま す';
+  try{
+    const q = fb.query(
+      fb.collection(fb.db, 'games'),
+      fb.where('status', '==', 'waiting'),
+      fb.orderBy('createdAt', 'asc'),
+      fb.limit(5)
+    );
+    const snap = await fb.getDocs(q);
+    let joined = false;
+    for(const d of snap.docs){
+      const data = d.data();
+      if((data.players || []).length < 3){
+        const ok = await tryJoin(d.id);
+        if(ok){ currentGameId = d.id; joined = true; break; }
+      }
+    }
+    if(!joined){
+      const ref = await fb.addDoc(fb.collection(fb.db, 'games'), {
+        status: 'waiting',
+        players: [{ id: myId, name: myName, slot: 0 }],
+        currentTurn: 0,
+        turnState: 'idle',
+        turnScores: [null, null, null],
+        turnOffsets: [null, null, null],
+        createdAt: fb.serverTimestamp()
+      });
+      currentGameId = ref.id;
+      mySlot = 0;
+    }
+    listenGame(currentGameId);
+  }catch(err){
+    console.error('[fb]', err);
+    status.textContent = '通信エラー — Firestore のルールを確認してください';
+  }
+}
+
+async function tryJoin(gameId){
+  if(!fb) return false;
+  try{
+    const ref = fb.doc(fb.db, 'games', gameId);
+    return await fb.runTransaction(fb.db, async (tx)=>{
+      const cur = await tx.get(ref);
+      if(!cur.exists()) return false;
+      const data = cur.data();
+      if(data.status !== 'waiting') return false;
+      const players = data.players || [];
+      if(players.length >= 3) return false;
+      const exist = players.find(p => p.id === myId);
+      if(exist){ mySlot = exist.slot; return true; }
+      const slot = players.length;
+      players.push({ id: myId, name: myName, slot });
+      mySlot = slot;
+      const update = { players };
+      if(players.length === 3){
+        update.status = 'playing';
+        update.currentTurn = 0;
+        update.turnState = 'idle';
+      }
+      tx.update(ref, update);
+      return true;
+    });
+  }catch(e){ console.error(e); return false; }
+}
+
+async function leaveGame(gameId, playerId){
+  if(!fb) return;
+  try{
+    const ref = fb.doc(fb.db, 'games', gameId);
+    await fb.runTransaction(fb.db, async (tx)=>{
+      const cur = await tx.get(ref);
+      if(!cur.exists()) return;
+      const data = cur.data();
+      const players = (data.players || []).filter(p => p.id !== playerId);
+      if(data.status === 'waiting'){
+        if(players.length === 0){ tx.delete(ref); }
+        else{
+          players.forEach((p, i)=>{ p.slot = i; });
+          tx.update(ref, { players });
+        }
+      }else{
+        // game already started — keep the document but remove me from the player list
+        tx.update(ref, { players });
+      }
+    });
+  }catch(e){ console.error(e); }
+}
+
+function listenGame(gameId){
+  if(!fb) return;
+  if(unsubGame){ try{ unsubGame(); }catch(e){} unsubGame = null; }
+  const ref = fb.doc(fb.db, 'games', gameId);
+  unsubGame = fb.onSnapshot(ref, (snap)=>{
+    if(!snap.exists()){
+      $('lobbyStatus').textContent = '部 屋 が 閉 じ ら れ ま し た';
+      return;
+    }
+    const data = snap.data();
+    currentGameSnap = data;
+    const me = (data.players || []).find(p => p.id === myId);
+    mySlot = me ? me.slot : -1;
+    if(subState === 'lobby'){
+      renderLobby(data);
+      if(data.status === 'playing'){ enterPlay(data); }
+    }else if(subState === 'play'){
+      renderPlay(data);
+    }
+  }, err => {
+    console.error('[fb] onSnapshot:', err);
+    $('lobbyStatus').textContent = '通 信 エ ラ ー';
+  });
+}
+
+function renderLobby(data){
+  const players = data.players || [];
+  document.querySelectorAll('.slot-circle').forEach(circle => {
+    const s = parseInt(circle.dataset.slot, 10);
+    const p = players.find(p => p.slot === s);
+    circle.classList.toggle('filled', !!p);
+    circle.classList.toggle('mine', !!(p && p.id === myId));
+    const plus = circle.querySelector('.plus');
+    let pname = circle.querySelector('.pname');
+    if(p){
+      if(plus) plus.style.display = 'none';
+      if(!pname){
+        pname = document.createElement('span');
+        pname.className = 'pname';
+        circle.appendChild(pname);
+      }
+      pname.textContent = p.name;
+    }else{
+      if(plus) plus.style.display = '';
+      if(pname) pname.remove();
+    }
+  });
+  const status = $('lobbyStatus');
+  if(players.length === 3){
+    status.textContent = '準 備 完 了';
+    status.classList.add('ready');
+  }else{
+    status.textContent = `あ と ${3 - players.length} 人 待 機 中`;
+    status.classList.remove('ready');
+  }
+}
+
+document.querySelectorAll('.slot-circle').forEach(circle => {
+  circle.addEventListener('click', async ()=>{
+    if(!currentGameId || !fb) return;
+    if(circle.classList.contains('filled')) return;
+    const targetSlot = parseInt(circle.dataset.slot, 10);
+    try{
+      const ref = fb.doc(fb.db, 'games', currentGameId);
+      await fb.runTransaction(fb.db, async (tx)=>{
+        const cur = await tx.get(ref);
+        if(!cur.exists()) return;
+        const data = cur.data();
+        if(data.status !== 'waiting') return;
+        let players = data.players || [];
+        if(players.find(p => p.slot === targetSlot)) return;   // taken
+        const me = players.find(p => p.id === myId);
+        if(me){ me.slot = targetSlot; }
+        else{ players.push({ id: myId, name: myName, slot: targetSlot }); }
+        const update = { players };
+        if(players.length === 3){
+          update.status = 'playing';
+          update.currentTurn = 0;
+          update.turnState = 'idle';
+        }
+        tx.update(ref, update);
+      });
+    }catch(e){ console.error(e); }
+  });
+});
+
+document.querySelectorAll('.slot-leave').forEach(btn => {
+  btn.addEventListener('click', async (e)=>{
+    e.stopPropagation();
+    if(!currentGameId || !fb) return;
+    await leaveGame(currentGameId, myId);
+    mySlot = -1;
+    // re-discover or create another lobby
+    subState = 'lobby';
+    joinOrCreateGame();
+  });
+});
+
+// =================================================================
+// 4) gameplay
+// =================================================================
+function enterPlay(data){
+  subState = 'play';
+  showScreen('scrPlay');
+  renderPlay(data);
+}
+
+function renderPlay(data){
+  if(!data) return;
+  const players = (data.players || []).slice().sort((a,b)=> a.slot - b.slot);
+  const turnScores = data.turnScores || [null,null,null];
+
+  // header tags
+  const hdr = $('playHeader');
+  hdr.innerHTML = '';
+  players.forEach(p => {
+    const isCurrent = (p.slot === data.currentTurn);
+    const isMe = (p.id === myId);
+    const status = (turnScores[p.slot] != null) ? '完 了' : (isCurrent ? '料 理 中' : '観 戦 中');
+    const div = document.createElement('div');
+    div.className = 'play-name-tag' + (isCurrent ? ' active' : '');
+    div.innerHTML = `
+      <div class="pn-tag">(${ROLE_TAGS[p.slot]})</div>
+      <div class="pn-name">${escapeHtml(p.name)}${isMe?' ·':''}</div>
+      <div class="pn-status">${status}</div>
+      <div class="pn-score">${turnScores[p.slot] != null ? turnScores[p.slot] : ''}</div>
+    `;
+    hdr.appendChild(div);
+  });
+
+  const cur = players.find(p => p.slot === data.currentTurn);
+  $('pcName').textContent = cur ? cur.name : '―';
+  const total = (data.turnScores || []).reduce((s,v)=> s + (v || 0), 0);
+  $('pcTotal').textContent = total;
+
+  // per-player background
+  setPlayerBg(data.currentTurn);
+
+  // watch banner — explicit "1Pを観戦中・次は2P" feedback
+  const banner = $('watchBanner');
+  const isMyTurn = (mySlot === data.currentTurn);
+  const next = data.currentTurn + 1;
+  if(isMyTurn){
+    banner.textContent = '― あ な た の 番 で す ―';
+  }else if(cur){
+    const nextPlayer = players.find(p => p.slot === next);
+    const nextLabel = nextPlayer ? `次 は ${ROLE_TAGS[next]} (${nextPlayer.name})` : '';
+    banner.textContent = `${ROLE_TAGS[data.currentTurn]} ${cur.name} を 観 戦 中` + (nextLabel ? `   ·   ${nextLabel}` : '');
+  }else{
+    banner.textContent = '';
+  }
+
+  // action button visibility/state
+  const turnDone = turnScores[data.currentTurn] != null;
+  const playWatching = $('playWatching');
+  const actionBtn = $('actionBtn');
+  if(isMyTurn && !turnDone && data.turnState !== 'running'){
+    actionBtn.style.display = '';
+    actionBtn.disabled = false;
+    actionBtn.classList.remove('stop');
+    actionBtn.textContent = 'S T A R T';
+    playWatching.style.display = 'none';
+    $('timerWrap').classList.remove('hidden');
+    // reset timer display
+    $('timerNum').textContent = TIMER_TOTAL;
+    $('timerFg').setAttribute('stroke-dashoffset', '0');
+  }else if(isMyTurn && data.turnState === 'running'){
+    actionBtn.style.display = '';
+    actionBtn.disabled = false;
+    actionBtn.classList.add('stop');
+    actionBtn.textContent = 'S T O P';
+    playWatching.style.display = 'none';
+  }else{
+    actionBtn.style.display = 'none';
+    playWatching.style.display = '';
+  }
+
+  // timer driver
+  if(data.turnState === 'running' && data.timerStart){
+    if(!timerHandle){
+      const startMs = data.timerStart.toMillis ? data.timerStart.toMillis() : Date.now();
+      runTimer(startMs);
+    }
+  }else if(data.turnState !== 'running' && timerHandle){
+    clearInterval(timerHandle);
+    timerHandle = null;
+  }
+
+  // last-turn result text (briefly shown between turns)
+  const lastDoneSlot = (data.turnScores || []).map((v,i)=> v != null ? i : -1).filter(i => i >= 0).pop();
+  if(lastDoneSlot != null && lastDoneSlot >= 0 && data.turnState === 'idle'){
+    const off = data.turnOffsets ? data.turnOffsets[lastDoneSlot] : null;
+    const sc = turnScores[lastDoneSlot];
+    const ply = players.find(p => p.slot === lastDoneSlot);
+    $('turnResult').innerHTML = `
+      <span>${escapeHtml(ply ? ply.name : '')} ：</span>
+      <span class="off">${off != null ? (off > 0 ? '+' : '') + off.toFixed(1) + '秒' : ''}</span>
+      <span> → </span>
+      <span class="scr">${sc}点</span>
+    `;
+  }else{
+    $('turnResult').innerHTML = '';
+  }
+
+  // results gating
+  if(data.status === 'finished' || (data.turnScores || []).every(v => v != null)){
+    setTimeout(()=> showResults(data), 1800);
+  }
+}
+
+function runTimer(startMs){
+  const FG = $('timerFg');
+  const NUM = $('timerNum');
+  const wrap = $('timerWrap');
+  const C = 2 * Math.PI * 46;     // circumference matches r=46
+  FG.setAttribute('stroke-dasharray', C.toFixed(2));
+  timerStopped = false;
+  if(timerHandle) clearInterval(timerHandle);
+  timerHandle = setInterval(()=>{
+    const elapsed = (Date.now() - startMs) / 1000;
+    const remaining = TIMER_TOTAL - elapsed;
+    if(remaining > TIMER_VISIBLE_UNTIL){
+      wrap.classList.remove('hidden');
+      NUM.textContent = Math.max(0, Math.ceil(remaining));
+      const ratio = Math.max(0, remaining / TIMER_TOTAL);
+      FG.setAttribute('stroke-dashoffset', (C * (1 - ratio)).toFixed(2));
+    }else{
+      wrap.classList.add('hidden');
+    }
+  }, 80);
+}
+
+$('actionBtn').addEventListener('click', async ()=>{
+  if(!currentGameSnap || !currentGameId || !fb) return;
+  if(mySlot !== currentGameSnap.currentTurn) return;
+  if(currentGameSnap.turnState === 'idle'){
+    try{
+      await fb.updateDoc(fb.doc(fb.db, 'games', currentGameId), {
+        turnState: 'running',
+        timerStart: fb.serverTimestamp()
+      });
+    }catch(e){ console.error(e); }
+  }else if(currentGameSnap.turnState === 'running'){
+    if(timerStopped) return;
+    timerStopped = true;
+    const startMs = (currentGameSnap.timerStart && currentGameSnap.timerStart.toMillis)
+      ? currentGameSnap.timerStart.toMillis()
+      : Date.now();
+    const elapsed = (Date.now() - startMs) / 1000;
+    const off = TIMER_TOTAL - elapsed;                                        // seconds from target (signed)
+    const score = Math.max(0, Math.round(100 - Math.abs(off) * 10));          // 100 max, drops 10/sec
+    try{
+      const ref = fb.doc(fb.db, 'games', currentGameId);
+      await fb.runTransaction(fb.db, async (tx)=>{
+        const cur = await tx.get(ref);
+        if(!cur.exists()) return;
+        const d = cur.data();
+        const ts  = (d.turnScores  || [null,null,null]).slice();
+        const tos = (d.turnOffsets || [null,null,null]).slice();
+        ts[d.currentTurn]  = score;
+        tos[d.currentTurn] = Number(off.toFixed(1));
+        const next = d.currentTurn + 1;
+        const update = { turnScores: ts, turnOffsets: tos, turnState: 'idle' };
+        if(next >= 3){ update.status = 'finished'; }
+        else { update.currentTurn = next; }
+        tx.update(ref, update);
+      });
+    }catch(e){ console.error(e); }
+  }
+});
+
+// =================================================================
+// 5) results
+// =================================================================
+// add or tweak tiers as you like
+function classifyScore(total){
+  if(total >= 270) return { img:'scr1.png', comment:'完 璧 な 三 人 の 連 携 — 中 華 神 の 域' };
+  if(total >= 220) return { img:'scr2.png', comment:'息 ぴ っ た り の 上 級 コ ン ビ' };
+  if(total >= 160) return { img:'scr3.png', comment:'ま あ ま あ の 仕 上 が り' };
+  if(total >= 100) return { img:'scr4.png', comment:'う ー ん … 練 習 が 必 要 で す' };
+  return                      { img:'scr5.png', comment:'お し い ！ 次 こ そ' };
+}
+
+function showResults(data){
+  if(subState === 'results') return;
+  subState = 'results';
+  showScreen('scrResults');
+  $('resultsBox').classList.add('in');
+  clearPlayerBg();   // back to base atmosphere for results
+
+  const players = (data.players || []).slice().sort((a,b)=> a.slot - b.slot);
+  const ts = data.turnScores || [];
+  const total = ts.reduce((s,v)=> s + (v || 0), 0);
+  const { img, comment } = classifyScore(total);
+  resultsImageUrl = img;
+  $('rImg').style.backgroundImage = `url('${img}')`;
+  $('rComment').textContent = comment;
+
+  const sc = $('rScores');
+  sc.innerHTML = '';
+  players.forEach(p => {
+    const v = ts[p.slot];
+    sc.innerHTML += `
+      <div class="rs-block">
+        <div class="rsl">${ROLE_TAGS[p.slot]}</div>
+        <div class="rsv">${v != null ? v : '-'}</div>
+        <div class="rsn">${escapeHtml(p.name)}</div>
+      </div>
+    `;
+  });
+  sc.innerHTML += `
+    <div class="rs-block total">
+      <div class="rsl">total</div>
+      <div class="rsv">${total}</div>
+    </div>
+  `;
+}
+
+$('toPhotoBtn').addEventListener('click', ()=> openPhoto());
+$('resultsHomeBtn').addEventListener('click', goEventHome);
+
+// =================================================================
+// 6) photo composite — red chroma key, dish image fitted behind the red region
+// =================================================================
+const photoCanvas = $('photoCanvas');
+const pctx = photoCanvas.getContext('2d');
+let userImg = null;
+let resultImg = null;
+
+function openPhoto(){
+  subState = 'photo';
+  showScreen('scrPhoto');
+  resultImg = new Image();
+  resultImg.crossOrigin = 'anonymous';
+  resultImg.onload = ()=>{ if(userImg) renderPhoto(); };
+  resultImg.src = resultsImageUrl || 'scr1.png';
+  $('savePhotoBtn').disabled = true;
+}
+
+$('fileInput').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  const url = URL.createObjectURL(f);
+  userImg = new Image();
+  userImg.onload = ()=>{ renderPhoto(); URL.revokeObjectURL(url); };
+  userImg.src = url;
+});
+
+function renderPhoto(){
+  if(!userImg) return;
+  // fit canvas display to stage while keeping native pixel resolution
+  const stage = photoCanvas.parentElement;
+  const stageW = stage.clientWidth;
+  const stageH = stage.clientHeight;
+  const ar = userImg.width / userImg.height;
+  let cw, ch;
+  if(stageW / stageH > ar){ ch = stageH; cw = stageH * ar; }
+  else                    { cw = stageW; ch = stageW / ar; }
+  photoCanvas.width  = userImg.width;
+  photoCanvas.height = userImg.height;
+  photoCanvas.style.width  = cw + 'px';
+  photoCanvas.style.height = ch + 'px';
+  pctx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
+  pctx.drawImage(userImg, 0, 0);
+
+  // chroma-key: knock out red pixels, also track the bounding box of the cut-out
+  const idata = pctx.getImageData(0, 0, photoCanvas.width, photoCanvas.height);
+  const px = idata.data;
+  let minX = photoCanvas.width, minY = photoCanvas.height;
+  let maxX = 0, maxY = 0, redCount = 0;
+  for(let y = 0; y < photoCanvas.height; y++){
+    for(let x = 0; x < photoCanvas.width; x++){
+      const i = (y * photoCanvas.width + x) * 4;
+      const r = px[i], g = px[i+1], b = px[i+2];
+      if(r > 140 && g < 110 && b < 110 && (r - Math.max(g, b)) > 40){
+        px[i+3] = 0;       // make transparent
+        if(x < minX) minX = x;
+        if(y < minY) minY = y;
+        if(x > maxX) maxX = x;
+        if(y > maxY) maxY = y;
+        redCount++;
+      }
+    }
+  }
+  pctx.putImageData(idata, 0, 0);
+
+  if(redCount > 50 && resultImg && resultImg.complete && resultImg.naturalWidth){
+    // composite the dish image *behind* the photo at the cut-out region
+    const rw = maxX - minX, rh = maxY - minY;
+    const off = document.createElement('canvas');
+    off.width  = photoCanvas.width;
+    off.height = photoCanvas.height;
+    const octx = off.getContext('2d');
+    const ir = resultImg.width / resultImg.height;
+    const br = rw / rh;
+    let dw, dh, dx, dy;
+    if(ir > br){ dh = rh; dw = rh * ir; dx = minX + (rw - dw) / 2; dy = minY; }
+    else      { dw = rw; dh = rw / ir; dx = minX; dy = minY + (rh - dh) / 2; }
+    octx.drawImage(resultImg, dx, dy, dw, dh);   // dish first (back)
+    octx.drawImage(photoCanvas, 0, 0);           // photo with hole on top (front)
+    pctx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
+    pctx.drawImage(off, 0, 0);
+    $('savePhotoBtn').disabled = false;
+  }else{
+    $('savePhotoBtn').disabled = (redCount > 50) ? false : true;
+  }
+}
+
+$('savePhotoBtn').addEventListener('click', ()=>{
+  try{
+    const dataUrl = photoCanvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `chahan_${Date.now()}.png`;
+    a.click();
+    // confirmation feedback, then auto-return to event home
+    const btn = $('savePhotoBtn');
+    const orig = btn.textContent;
+    btn.textContent = '保 存 し ま し た';
+    btn.disabled = true;
+    setTimeout(()=>{ goEventHome(); }, 900);
+  }catch(e){ alert('保存に失敗しました：' + e.message); }
+});
+$('photoHomeBtn').addEventListener('click', goEventHome);
+
+// =================================================================
+// rain canvas — atmospheric layer (subtle, doesn't fight the bg)
+// =================================================================
+window.__bootStep = 'rain-canvas';
+const canvas = $('rain-canvas');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, dpr = 1, drops = [];
+const LAYERS = [
+  { share:.30, sMin:9,  sMax:15, lMin:5,  lMax:13, oMin:.05, oMax:.12, wMin:.5, wMax:.7, slMin:-.4, slMax:-.9 },
+  { share:.40, sMin:20, sMax:34, lMin:14, lMax:30, oMin:.10, oMax:.22, wMin:.6, wMax:.9, slMin:-.7, slMax:-1.4 },
+  { share:.30, sMin:42, sMax:80, lMin:30, lMax:70, oMin:.22, oMax:.40, wMin:.9, wMax:1.3, slMin:-1.0, slMax:-2.0 }
+];
+function rand(a,b){ return a + Math.random()*(b-a); }
+function makeDrop(L){
+  return {
+    x: Math.random()*W,
+    y: Math.random()*H - H,
+    len: rand(L.lMin, L.lMax),
+    speed: rand(L.sMin, L.sMax),
+    opacity: rand(L.oMin, L.oMax),
+    width: rand(L.wMin, L.wMax),
+    slant: rand(L.slMin, L.slMax),
+    layer: L
+  };
+}
+function initDrops(){
+  drops = [];
+  const baseCount = Math.min(360, Math.max(120, Math.floor(W*H/5400)));   // a touch lighter than home
+  LAYERS.forEach(L => {
+    const n = Math.floor(baseCount * L.share);
+    for(let i = 0; i < n; i++) drops.push(makeDrop(L));
+  });
+}
+function resize(){
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = innerWidth; H = innerHeight;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  initDrops();
+}
+function tick(){
+  ctx.clearRect(0, 0, W, H);
+  ctx.lineCap = 'round';
+  for(let i = 0; i < drops.length; i++){
+    const d = drops[i];
+    ctx.lineWidth = d.width;
+    const x2 = d.x + d.slant, y2 = d.y + d.len;
+    const g = ctx.createLinearGradient(d.x, d.y, x2, y2);
+    g.addColorStop(0, 'rgba(225,238,255,0)');
+    g.addColorStop(1, `rgba(230,240,255,${d.opacity})`);
+    ctx.strokeStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(d.x, d.y);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    d.x += d.slant * .35;
+    d.y += d.speed;
+    if(d.y > H){
+      d.y = -d.len - rand(0, 100);
+      d.x = Math.random() * W;
+      d.len     = rand(d.layer.lMin, d.layer.lMax);
+      d.speed   = rand(d.layer.sMin, d.layer.sMax);
+      d.opacity = rand(d.layer.oMin, d.layer.oMax);
+      d.slant   = rand(d.layer.slMin, d.layer.slMax);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+let resizeT = null;
+window.addEventListener('resize', ()=>{
+  clearTimeout(resizeT);
+  resizeT = setTimeout(resize, 120);
+});
+resize();
+requestAnimationFrame(tick);
+
+// =================================================================
+// cleanup if user closes tab while in a game
+// =================================================================
+window.addEventListener('beforeunload', ()=>{
+  if(currentGameId && mySlot >= 0 && fb){
+    try{ leaveGame(currentGameId, myId); }catch(e){}
+  }
+});
+
+window.__bootStep = 'main-ready';
+console.log('[chahan] script ready');
+</script>
+</body>
+</html>

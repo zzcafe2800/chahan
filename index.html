@@ -224,8 +224,16 @@
 
   .play-target{font-weight:300;font-size:clamp(18px,2.4vw,28px);letter-spacing:.4em;color:var(--ink);text-shadow:0 0 18px rgba(0,0,0,.85);margin-bottom:24px}
 
-  .timer-wrap{position:relative;width:240px;height:240px;display:flex;align-items:center;justify-content:center;margin-bottom:32px;transition:opacity 1.2s ease}
+  .timer-wrap{position:relative;width:240px;height:240px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;transition:opacity 1.2s ease}
   .timer-wrap.hidden{opacity:0}
+  .timer-notice{
+    font-family:var(--serif);font-weight:300;font-size:13px;letter-spacing:.18em;
+    color:var(--ink-soft);text-shadow:0 0 8px rgba(0,0,0,.85);
+    margin:0 auto 18px;text-align:center;
+    opacity:0;transition:opacity .8s ease;
+    pointer-events:none;
+  }
+  .timer-notice.show{opacity:1}
   .timer-ring{position:absolute;inset:0;transform:rotate(-90deg)}
   .timer-ring circle{fill:none;stroke-width:2}
   .timer-ring .bg{stroke:rgba(244,246,251,.08)}
@@ -389,6 +397,7 @@
           </svg>
           <div class="timer-num" id="timerNum">60</div>
         </div>
+        <div class="timer-notice" id="timerNotice">３ ０ 秒 か ら タ イ マ ー が 非 表 示 に な り ま す</div>
         <div class="play-action">
           <button class="btn-action" id="actionBtn">S T A R T</button>
           <div class="play-watching" id="playWatching" style="display:none">― 観 戦 中 ―</div>
@@ -816,6 +825,8 @@ function resetTimerDisplay(){
   const C = 2 * Math.PI * 46;
   $('timerFg').setAttribute('stroke-dasharray', C.toFixed(2));
   $('timerWrap').classList.remove('hidden');
+  // notice appears whenever the timer is at/above 40s (idle = 60s, well above)
+  const n = $('timerNotice'); if(n) n.classList.add('show');
 }
 
 function buildWatchBanner(data, players, cur, isMyTurn){
@@ -950,6 +961,7 @@ function runTimer(startMs){
   const FG = $('timerFg');
   const NUM = $('timerNum');
   const wrap = $('timerWrap');
+  const notice = $('timerNotice');
   const C = 2 * Math.PI * 46;
   FG.setAttribute('stroke-dasharray', C.toFixed(2));
   timerStopped = false;
@@ -966,6 +978,11 @@ function runTimer(startMs){
       FG.setAttribute('stroke-dashoffset', (C * (1 - ratio)).toFixed(2));
     }else{
       wrap.classList.add('hidden');
+    }
+    // notice fades out at remaining ≤ 40s (10s before the timer itself disappears at 30s)
+    if(notice){
+      if(remaining > 40) notice.classList.add('show');
+      else               notice.classList.remove('show');
     }
   }, 80);
 }
@@ -1030,6 +1047,8 @@ function showResults(data){
   $('resultsBox').classList.add('in');
   clearPlayerBg();
   stopCookBgm();
+  // hide the timer instructional notice (only relevant during play)
+  const tn = $('timerNotice'); if(tn) tn.classList.remove('show');
 
   const players = (data.players || []).slice().sort((a,b)=> a.slot - b.slot);
   const ts = data.turnScores || [];

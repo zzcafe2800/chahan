@@ -17,9 +17,8 @@
       caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))).catch(()=>{});
     }
   }catch(e){}
-  console.log('%c[chahan] v.0.1 loaded', 'color:#d9b88a;font-weight:bold');
+  console.log('%c[chahan] v.0.2 loaded', 'color:#d9b88a;font-weight:bold');
 
-  // visible diagnostics — surface JS errors as a red banner so the user can copy them
   window.__bootStep = 'init';
   window.addEventListener('error', function(ev){
     try{
@@ -44,13 +43,14 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23080a10'/%3E%3Cpath d='M50 28 L50 36 M14 60 Q14 36 50 32 Q86 36 86 60 M50 36 L50 88 Q50 95 44 95 Q38 95 38 90' stroke='white' fill='none' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@200;300;400;500;700&family=Cormorant+Garamond:wght@300;400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@200;300;400;500;700&family=Cormorant+Garamond:wght@300;400;500&display=swap" rel="stylesheet">
 
 <style>
   :root{
     --ink:#f4f6fb;
     --ink-soft:rgba(244,246,251,.72);
     --ink-faint:rgba(244,246,251,.32);
+    --ink-very-faint:rgba(244,246,251,.18);
     --bg:#080a10;
     --warm:#d9b88a;
     --serif:'Noto Serif JP','Hiragino Mincho ProN','YuMincho',serif;
@@ -69,7 +69,6 @@
       radial-gradient(ellipse at 75% 80%, rgba(40,55,80,.45), transparent 60%),
       linear-gradient(180deg, #050709 0%, #0a0e15 50%, #060810 100%);
   }
-  /* per-player bg shown during play */
   .player-bg{
     position:fixed;inset:0;z-index:1;
     background:#000 center/cover no-repeat;
@@ -79,10 +78,8 @@
   }
   .player-bg.show{opacity:.85}
 
-  /* rain canvas */
   #rain-canvas{position:fixed;inset:0;z-index:3;pointer-events:none}
 
-  /* vignette + grain */
   .vignette{position:fixed;inset:0;z-index:5;pointer-events:none;background:radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,.55) 85%, rgba(0,0,0,.85) 100%)}
   .grain{
     position:fixed;inset:-50%;z-index:6;pointer-events:none;opacity:.06;mix-blend-mode:overlay;
@@ -91,23 +88,23 @@
   }
   @keyframes grain{0%{transform:translate(0,0)}20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-3%)}60%{transform:translate(-2%,1%)}80%{transform:translate(3%,-1%)}100%{transform:translate(0,0)}}
 
-  /* version tag */
   .ver{position:fixed;top:6px;right:8px;z-index:9999;font-family:var(--latin);font-weight:300;font-size:10px;line-height:1;color:rgba(255,255,255,0.5);letter-spacing:.25em;pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,.8)}
 
-  /* ---------- back-to-event button ---------- */
-  .back-home{
-    position:fixed;top:24px;left:28px;z-index:100;
-    font-family:var(--latin);font-weight:300;font-size:11px;letter-spacing:.4em;
-    color:var(--ink-faint);text-transform:uppercase;
-    background:transparent;border:0;padding:8px 12px;cursor:pointer;
-    transition:color .3s ease;
+  /* ---------- toast notification ---------- */
+  .toast{
+    position:fixed;top:30px;left:50%;transform:translateX(-50%) translateY(-12px);
+    z-index:200;background:rgba(0,0,0,.82);color:var(--ink);
+    padding:14px 30px;border-radius:6px;font-family:var(--serif);font-weight:300;
+    font-size:14px;letter-spacing:.3em;
+    border:1px solid rgba(255,255,255,.15);box-shadow:0 8px 30px rgba(0,0,0,.5);
+    opacity:0;pointer-events:none;
+    transition:opacity .5s ease, transform .5s ease;
+    white-space:nowrap;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
   }
-  .back-home::before{content:'← ';opacity:.7}
-  .back-home:hover{color:var(--ink)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
   /* ---------- screen container ---------- */
   .game{position:relative;z-index:10;width:100%;height:100vh;color:var(--ink)}
-
   .gscr{
     position:absolute;inset:0;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -135,12 +132,9 @@
   .btn-action.stop:hover{background:rgba(232,168,168,.12)}
   .btn-action:disabled{opacity:.3;cursor:not-allowed}
 
-  /* ---------- screen: name input ---------- */
+  /* ---------- name input ---------- */
   .name-form{display:flex;flex-direction:column;align-items:center;gap:32px}
-  .name-overline{
-    font-family:var(--latin);font-weight:300;font-size:10px;letter-spacing:.55em;
-    color:var(--ink-faint);text-transform:uppercase;margin-bottom:6px;
-  }
+  .name-overline{font-family:var(--latin);font-weight:300;font-size:10px;letter-spacing:.55em;color:var(--ink-faint);text-transform:uppercase;margin-bottom:6px}
   .name-prompt{font-weight:300;font-size:clamp(18px,2.4vw,28px);letter-spacing:.4em;color:var(--ink);text-shadow:0 0 18px rgba(0,0,0,.7)}
   .name-input{
     width:min(420px, 80vw);background:transparent;border:0;border-bottom:1px solid var(--ink-faint);
@@ -149,8 +143,8 @@
   }
   .name-input:focus{border-color:var(--ink)}
 
-  /* ---------- screen: how to play ---------- */
-  .howto{display:flex;flex-direction:column;align-items:center;gap:28px;width:100%;max-width:1100px;padding:80px 24px 30px}
+  /* ---------- howto ---------- */
+  .howto{display:flex;flex-direction:column;align-items:center;gap:28px;width:100%;max-width:1100px;padding:60px 24px 30px}
   .howto-overline{font-family:var(--latin);font-weight:300;font-size:10px;letter-spacing:.6em;color:var(--ink-faint);text-transform:uppercase}
   .howto-img{
     width:min(820px, 92vw);aspect-ratio:16/10;
@@ -159,14 +153,21 @@
   }
   .howto-actions{display:flex;justify-content:flex-end;width:min(820px, 92vw)}
 
-  /* ---------- screen: lobby ---------- */
-  .lobby{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px 40px}
+  /* ---------- lobby ---------- */
+  .lobby{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px}
   .lobby-title{font-weight:300;font-size:clamp(24px,3.6vw,42px);letter-spacing:.45em;margin-bottom:14px;text-shadow:0 0 20px rgba(0,0,0,.8)}
   .lobby-sub{font-weight:300;font-size:clamp(13px,1.6vw,16px);letter-spacing:.35em;color:var(--ink-soft);margin-bottom:60px}
   .slots{display:flex;gap:48px;align-items:flex-start}
-  .slot{display:flex;flex-direction:column;align-items:center;gap:14px;width:160px}
-  .slot-role{font-weight:300;font-size:13px;letter-spacing:.35em;color:var(--ink-soft);text-align:center;line-height:1.6;min-height:42px}
-  .slot-role .role-tag{display:block;font-family:var(--latin);font-size:9px;letter-spacing:.5em;color:var(--ink-faint);text-transform:uppercase;margin-top:2px}
+  .slot{display:flex;flex-direction:column;align-items:center;gap:14px;width:170px}
+  .slot-role{
+    font-weight:300;font-size:14px;letter-spacing:.32em;color:var(--ink-soft);
+    text-align:center;line-height:1.4;min-height:24px;
+    display:flex;align-items:baseline;justify-content:center;gap:8px;
+  }
+  .slot-role .role-tag{
+    font-family:var(--latin);font-size:18px;letter-spacing:.18em;
+    color:var(--warm);font-weight:400;
+  }
   .slot-circle{
     position:relative;width:130px;height:130px;border-radius:50%;
     border:1px solid var(--ink-faint);background:rgba(20,24,32,.5);
@@ -176,17 +177,22 @@
   .slot-circle:hover{border-color:var(--ink-soft);background:rgba(40,48,60,.55)}
   .slot-circle.filled{border-color:var(--ink-soft);background:rgba(217,184,138,.08);cursor:default}
   .slot-circle.mine{border-color:var(--warm);background:rgba(217,184,138,.18)}
+  .slot-circle.disabled{opacity:.45;cursor:not-allowed}
   .slot-circle .plus{font-family:var(--latin);font-size:32px;font-weight:300;color:var(--ink-soft);transition:color .3s ease}
   .slot-circle:hover .plus{color:var(--ink)}
   .slot-circle .pname{font-weight:300;font-size:14px;letter-spacing:.18em;color:var(--ink);text-align:center;padding:0 8px;word-break:break-word}
-  .slot-leave{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;border:1px solid var(--ink-faint);background:#0a0e15;color:var(--ink-soft);cursor:pointer;font-size:14px;line-height:1;display:none;align-items:center;justify-content:center}
+  .slot-leave{
+    position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;
+    border:1px solid var(--ink-faint);background:#0a0e15;color:var(--ink-soft);cursor:pointer;
+    font-size:14px;line-height:1;display:none;align-items:center;justify-content:center;
+  }
   .slot-circle.mine .slot-leave{display:flex}
   .slot-leave:hover{border-color:var(--ink);color:var(--ink)}
   .lobby-status{margin-top:60px;font-weight:300;font-size:14px;letter-spacing:.4em;color:var(--ink-soft);min-height:24px;text-align:center}
   .lobby-status.ready{color:var(--warm);font-size:16px;letter-spacing:.5em;animation:readyPulse 1.4s ease-in-out infinite}
   @keyframes readyPulse{0%,100%{opacity:.6}50%{opacity:1}}
 
-  /* ---------- screen: gameplay ---------- */
+  /* ---------- gameplay ---------- */
   .play{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
   .play-header{position:absolute;top:0;left:0;right:0;padding:20px 28px;display:flex;justify-content:center;gap:36px;flex-wrap:wrap}
   .play-name-tag{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:96px;padding:8px 12px;border-radius:6px;transition:all .35s ease;background:rgba(0,0,0,.35);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
@@ -195,14 +201,27 @@
   .pn-name{font-weight:300;font-size:13px;letter-spacing:.18em;color:var(--ink)}
   .pn-status{font-size:10px;letter-spacing:.3em;color:var(--ink-soft);margin-top:2px}
   .pn-score{font-family:var(--latin);font-size:13px;letter-spacing:.15em;color:var(--warm);margin-top:2px;min-height:14px}
+  .pn-score .pn-pt{font-family:var(--serif);font-size:10px;color:var(--ink-soft);margin-left:2px}
 
   .play-current{position:absolute;left:28px;top:50%;transform:translateY(-50%);text-align:left;background:rgba(0,0,0,.35);padding:18px 22px;border-radius:6px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
   .pc-label{font-family:var(--latin);font-size:10px;letter-spacing:.4em;color:var(--ink-faint);text-transform:uppercase;margin-bottom:8px}
   .pc-name{font-weight:300;font-size:22px;letter-spacing:.18em;color:var(--ink);margin-bottom:18px}
   .pc-total-label{font-family:var(--latin);font-size:9px;letter-spacing:.4em;color:var(--ink-faint);text-transform:uppercase;margin-bottom:4px}
   .pc-total{font-family:var(--latin);font-size:36px;font-weight:300;color:var(--warm)}
+  .pc-total .pc-pt{font-family:var(--serif);font-size:13px;color:var(--ink-soft);margin-left:4px;letter-spacing:.2em}
 
-  .play-watch-banner{font-weight:300;font-size:14px;letter-spacing:.45em;color:var(--ink);text-shadow:0 0 14px rgba(0,0,0,.85);margin-bottom:14px;min-height:20px}
+  /* watch banner — names bright, the rest soft so the names pop */
+  .play-watch-banner{
+    font-weight:300;font-size:14px;letter-spacing:.32em;
+    color:var(--ink-faint);
+    text-shadow:0 0 14px rgba(0,0,0,.85);margin-bottom:14px;min-height:20px;
+  }
+  .play-watch-banner .wb-tag{color:var(--ink-very-faint);margin-right:.3em}
+  .play-watch-banner .wb-name{color:var(--ink);letter-spacing:.18em;font-size:16px;margin:0 .3em}
+  .play-watch-banner .wb-soft{color:var(--ink-faint)}
+  .play-watch-banner .wb-sep{color:var(--ink-very-faint);margin:0 .8em}
+  .play-watch-banner .wb-self{color:var(--warm);letter-spacing:.5em}
+
   .play-target{font-weight:300;font-size:clamp(18px,2.4vw,28px);letter-spacing:.4em;color:var(--ink);text-shadow:0 0 18px rgba(0,0,0,.85);margin-bottom:24px}
 
   .timer-wrap{position:relative;width:240px;height:240px;display:flex;align-items:center;justify-content:center;margin-bottom:32px;transition:opacity 1.2s ease}
@@ -216,10 +235,17 @@
   .play-action{display:flex;flex-direction:column;gap:14px;align-items:center}
   .play-watching{font-weight:300;font-size:13px;letter-spacing:.35em;color:var(--ink-soft);margin-top:24px;text-shadow:0 0 12px rgba(0,0,0,.85)}
 
-  .turn-result{margin-top:18px;font-weight:300;font-size:18px;letter-spacing:.3em;color:var(--ink);min-height:30px;text-shadow:0 0 12px rgba(0,0,0,.85)}
-  .turn-result .off,.turn-result .scr{font-family:var(--latin);font-size:24px;color:var(--warm)}
+  /* turn result: elapsed time + signed offset paren + score with /100 */
+  .turn-result{margin-top:18px;font-weight:300;font-size:18px;letter-spacing:.18em;color:var(--ink);min-height:30px;text-shadow:0 0 12px rgba(0,0,0,.85)}
+  .turn-result .tr-name{color:var(--ink);margin-right:.5em}
+  .turn-result .tr-elapsed{font-family:var(--latin);font-size:24px;color:var(--warm);font-weight:400}
+  .turn-result .tr-dev{font-family:var(--latin);font-size:13px;color:var(--ink-soft);margin-left:.3em;letter-spacing:.05em}
+  .turn-result .tr-arrow{margin:0 .6em;color:var(--ink-faint)}
+  .turn-result .tr-score{font-family:var(--latin);font-size:24px;color:var(--warm);font-weight:400}
+  .turn-result .tr-pt{font-family:var(--serif);font-size:11px;color:var(--ink-soft);margin-left:.2em;letter-spacing:.15em}
+  .turn-result .tr-out{font-family:var(--latin);font-size:11px;color:var(--ink-faint);margin-left:.15em;letter-spacing:.05em}
 
-  /* ---------- screen: results ---------- */
+  /* ---------- results ---------- */
   .results{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 20px;gap:20px;overflow:auto}
   .results-headline{font-weight:300;font-size:clamp(28px,4vw,46px);letter-spacing:.5em;color:var(--ink);text-shadow:0 0 24px rgba(0,0,0,.8);opacity:0;transform:translateY(8px);transition:opacity 1.2s ease, transform 1.2s ease}
   .results.in .results-headline{opacity:1;transform:translateY(0)}
@@ -232,17 +258,21 @@
   .rs-block{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:90px}
   .rs-block .rsl{font-family:var(--latin);font-size:9px;letter-spacing:.4em;color:var(--ink-faint);text-transform:uppercase}
   .rs-block .rsv{font-family:var(--latin);font-size:24px;font-weight:300;color:var(--warm)}
+  .rs-block .rsv .rsv-pt{font-family:var(--serif);font-size:11px;color:var(--ink-soft);letter-spacing:.15em;margin-left:2px}
   .rs-block .rsn{font-size:11px;letter-spacing:.18em;color:var(--ink-soft)}
   .rs-block.total .rsv{font-size:38px;color:var(--ink)}
+  .rs-block.total .rsv .rsv-pt{font-size:13px;color:var(--ink-faint)}
   .results-actions{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap;justify-content:center;opacity:0;transition:opacity 1.2s 3.6s ease}
   .results.in .results-actions{opacity:1}
 
-  /* ---------- screen: photo composite ---------- */
-  .photo-screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 20px;gap:20px;overflow:auto}
-  .photo-h{font-weight:300;font-size:clamp(20px,2.6vw,28px);letter-spacing:.45em;margin-bottom:6px}
-  .photo-sub{font-weight:300;font-size:13px;letter-spacing:.3em;color:var(--ink-soft);margin-bottom:14px;text-align:center;max-width:560px;line-height:1.7}
+  /* ---------- photo composite ---------- */
+  .photo-screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 20px;gap:18px;overflow:auto}
+  .photo-h{font-weight:300;font-size:clamp(20px,2.6vw,28px);letter-spacing:.45em;margin-bottom:2px}
+  .photo-sub{font-weight:300;font-size:13px;letter-spacing:.3em;color:var(--ink-soft);text-align:center;max-width:560px;line-height:1.7;min-height:22px}
+  .photo-sub.tap-prompt{color:var(--warm);animation:promptPulse 2.2s ease-in-out infinite}
+  @keyframes promptPulse{0%,100%{opacity:.65}50%{opacity:1}}
   .photo-stage{position:relative;width:min(640px, 92vw);aspect-ratio:4/3;background:#0a0d13 center/contain no-repeat;border:1px solid rgba(244,246,251,.1);overflow:hidden;display:flex;align-items:center;justify-content:center}
-  #photoCanvas{display:block;max-width:100%;max-height:100%}
+  #photoCanvas{display:block;max-width:100%;max-height:100%;cursor:pointer}
   .photo-actions{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
   .file-input-label{cursor:pointer}
   #fileInput{display:none}
@@ -255,25 +285,24 @@
     .pn-name{font-size:11px}
   }
   @media (max-width:640px){
-    .back-home{top:14px;left:14px;font-size:10px;letter-spacing:.3em}
-    .lobby{padding-top:80px}
+    .lobby{padding-top:60px}
     .slots{gap:14px}
     .slot{width:auto}
     .slot-circle{width:96px;height:96px}
-    .slot-role{font-size:11px;letter-spacing:.25em}
+    .slot-role{font-size:12px;letter-spacing:.22em}
+    .slot-role .role-tag{font-size:15px}
     .timer-wrap{width:180px;height:180px}
     .timer-num{font-size:46px}
     .play-target{font-size:16px}
     .results-img-wrap{width:88vw}
   }
 
-  /* page fade-out before navigating away */
   body.fade-out{opacity:0;transition:opacity .8s ease}
 </style>
 </head>
 <body>
 
-  <div class="ver">v.0.1</div>
+  <div class="ver">v.0.2</div>
 
   <div class="bg-fallback"></div>
   <div class="player-bg" id="playerBg"></div>
@@ -281,7 +310,7 @@
   <div class="grain"></div>
   <div class="vignette"></div>
 
-  <button class="back-home" id="backHome">i v e n t に 戻 る</button>
+  <div class="toast" id="toast"></div>
 
   <div class="game" id="game">
 
@@ -306,36 +335,35 @@
       </div>
     </div>
 
-    <!-- 3) lobby (3 slots) -->
+    <!-- 3) lobby — visual L-to-R: 1P (left), 2P (middle), 3P (right) -->
     <div class="gscr" id="scrLobby">
       <div class="lobby">
-        <div class="lobby-title" id="lobbyTitle">三 人 待 機 中</div>
+        <div class="lobby-title">三 人 待 機 中</div>
         <div class="lobby-sub">三 人 で チ ャ ー ハ ン を 作 ろ う ！</div>
         <div class="slots" id="slots">
-          <!-- visual L-to-R: 3P (仕上げる), 2P (炒める), 1P (下ごしらえ) — i.e., 1P is rightmost -->
-          <div class="slot" data-slot="2">
-            <div class="slot-role">仕上げる担当<span class="role-tag">3P · finishing</span></div>
-            <div class="slot-circle" data-slot="2">
-              <span class="plus">＋</span>
-              <button class="slot-leave" data-slot="2" aria-label="抜ける">×</button>
-            </div>
-          </div>
-          <div class="slot" data-slot="1">
-            <div class="slot-role">炒める担当<span class="role-tag">2P · stir-fry</span></div>
-            <div class="slot-circle" data-slot="1">
-              <span class="plus">＋</span>
-              <button class="slot-leave" data-slot="1" aria-label="抜ける">×</button>
-            </div>
-          </div>
           <div class="slot" data-slot="0">
-            <div class="slot-role">下ごしらえ担当<span class="role-tag">1P · prep</span></div>
+            <div class="slot-role">下ごしらえ担当 <span class="role-tag">(1P)</span></div>
             <div class="slot-circle" data-slot="0">
               <span class="plus">＋</span>
               <button class="slot-leave" data-slot="0" aria-label="抜ける">×</button>
             </div>
           </div>
+          <div class="slot" data-slot="1">
+            <div class="slot-role">炒める担当 <span class="role-tag">(2P)</span></div>
+            <div class="slot-circle" data-slot="1">
+              <span class="plus">＋</span>
+              <button class="slot-leave" data-slot="1" aria-label="抜ける">×</button>
+            </div>
+          </div>
+          <div class="slot" data-slot="2">
+            <div class="slot-role">仕上げる担当 <span class="role-tag">(3P)</span></div>
+            <div class="slot-circle" data-slot="2">
+              <span class="plus">＋</span>
+              <button class="slot-leave" data-slot="2" aria-label="抜ける">×</button>
+            </div>
+          </div>
         </div>
-        <div class="lobby-status" id="lobbyStatus">仲 間 を 待 っ て い ま す</div>
+        <div class="lobby-status" id="lobbyStatus">担当を選んでください</div>
       </div>
     </div>
 
@@ -347,7 +375,7 @@
           <div class="pc-label">cooking</div>
           <div class="pc-name" id="pcName">―</div>
           <div class="pc-total-label">team total</div>
-          <div class="pc-total" id="pcTotal">0</div>
+          <div class="pc-total"><span id="pcTotal">0</span><span class="pc-pt">点</span></div>
         </div>
         <div class="play-watch-banner" id="watchBanner"></div>
         <div class="play-target">０ 秒 ぴ っ た り で 止 め ろ ！ ！</div>
@@ -356,7 +384,7 @@
             <circle class="bg" cx="50" cy="50" r="46"/>
             <circle class="fg" id="timerFg" cx="50" cy="50" r="46" stroke-dasharray="289" stroke-dashoffset="0"/>
           </svg>
-          <div class="timer-num" id="timerNum">100</div>
+          <div class="timer-num" id="timerNum">60</div>
         </div>
         <div class="play-action">
           <button class="btn-action" id="actionBtn">S T A R T</button>
@@ -366,7 +394,7 @@
       </div>
     </div>
 
-    <!-- 5) results -->
+    <!-- 5) results — only 撮影 button remains (ホームへ removed) -->
     <div class="gscr" id="scrResults">
       <div class="results" id="resultsBox">
         <div class="results-headline">結 果 発 表</div>
@@ -375,7 +403,6 @@
         <div class="results-scores" id="rScores"></div>
         <div class="results-actions">
           <button class="btn-primary" id="toPhotoBtn">撮　影</button>
-          <button class="btn-primary" id="resultsHomeBtn">ホ ー ム へ</button>
         </div>
       </div>
     </div>
@@ -384,7 +411,7 @@
     <div class="gscr" id="scrPhoto">
       <div class="photo-screen">
         <div class="photo-h">撮 　 影</div>
-        <div class="photo-sub">赤い ● が入った写真を読み込んでください。<br>赤の部分を切り抜いて、結果画像を合成します。</div>
+        <div class="photo-sub" id="photoSub">下の説明画像（setu.png）を見て、写真を読み込んでください</div>
         <div class="photo-stage">
           <canvas id="photoCanvas"></canvas>
         </div>
@@ -392,7 +419,6 @@
           <label class="btn-primary file-input-label" for="fileInput">画 像 を 読 み 込 む</label>
           <input type="file" id="fileInput" accept="image/*">
           <button class="btn-primary" id="savePhotoBtn" disabled>保　存</button>
-          <button class="btn-primary" id="photoHomeBtn">ホ ー ム へ</button>
         </div>
       </div>
     </div>
@@ -405,12 +431,7 @@
 window.__bootStep = 'module-start';
 
 // =================================================================
-// CONFIG — adjust the URL below if your event home lives elsewhere
-// =================================================================
-const EVENT_HOME_URL = '../';   // relative path; if you serve elsewhere, set absolute URL like 'https://zzcafe2800.github.io/'
-
-// =================================================================
-// Firebase init
+// Firebase init (eager — required for the multiplayer game)
 // =================================================================
 const firebaseConfig = {
   apiKey: "AIzaSyAvLqQhgJlZLpyhfAYEdp38inFuIoUrmjg",
@@ -451,17 +472,25 @@ try{
   myId = localStorage.getItem('chahan_pid');
   if(!myId){ myId = uuid(); localStorage.setItem('chahan_pid', myId); }
 }catch(e){ myId = uuid(); }
-console.log('[chahan] myId =', myId);
+
+let toastTimer;
+function showToast(msg, duration = 2400){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ t.classList.remove('show'); }, duration);
+}
 
 // =================================================================
-// state
+// constants / state
 // =================================================================
 const ROLE_TAGS = ['1P','2P','3P'];
-const TIMER_TOTAL = 100;
-const TIMER_VISIBLE_UNTIL = 50; // visible while remaining > this many seconds
+const TIMER_TOTAL = 60;             // seconds — counts down from 60 to 0 (and into negative)
+const TIMER_VISIBLE_UNTIL = 30;     // visible while remaining > this many seconds (i.e. first half)
 
 let myName = '';
-let subState = 'name';        // name | howto | lobby | play | results | photo
+let subState = 'name';
 let currentGameId = null;
 let currentGameSnap = null;
 let mySlot = -1;
@@ -469,41 +498,16 @@ let unsubGame = null;
 let timerHandle = null;
 let timerStopped = false;
 let resultsImageUrl = '';
+let savedResultData = null;          // { players, scores, total, img } captured at showResults
 
 // =================================================================
-// navigation back to event home
-// =================================================================
-async function goEventHome(){
-  // If we're in a game, leave first so we don't leave a stale slot behind
-  try{
-    if(unsubGame){ unsubGame(); unsubGame = null; }
-    if(currentGameId && mySlot >= 0 && fb){
-      await leaveGame(currentGameId, myId);
-    }
-  }catch(e){}
-  document.body.classList.add('fade-out');
-  setTimeout(()=>{
-    try{
-      const ref = document.referrer;
-      if(ref && new URL(ref).hostname === location.hostname){
-        history.back();
-        return;
-      }
-    }catch(e){}
-    window.location.href = EVENT_HOME_URL;
-  }, 600);
-}
-$('backHome').addEventListener('click', goEventHome);
-
-// =================================================================
-// screen switching
+// screen switching + per-player bg
 // =================================================================
 function showScreen(id){
-  document.querySelectorAll('.gscr').forEach(s=>s.classList.remove('in'));
+  document.querySelectorAll('.gscr').forEach(s => s.classList.remove('in'));
   $(id).classList.add('in');
 }
 
-// per-player background image (fades in during play, hidden otherwise)
 const playerBg = $('playerBg');
 function setPlayerBg(turnIdx){
   if(turnIdx < 0 || turnIdx > 2){
@@ -515,6 +519,29 @@ function setPlayerBg(turnIdx){
   playerBg.classList.add('show');
 }
 function clearPlayerBg(){ playerBg.classList.remove('show'); }
+
+// =================================================================
+// reset all chahan state and return to name input
+// (used when room is aborted, anyone leaves during play, etc.)
+// =================================================================
+function resetToName(notice){
+  if(unsubGame){ try{ unsubGame(); }catch(e){} unsubGame = null; }
+  if(timerHandle){ clearInterval(timerHandle); timerHandle = null; }
+  currentGameId = null;
+  currentGameSnap = null;
+  mySlot = -1;
+  timerStopped = false;
+  clearPlayerBg();
+  resetTimerDisplay();
+  if(notice) showToast(notice);
+  subState = 'name';
+  showScreen('scrName');
+  // pre-fill name field for convenience
+  if(myName){
+    $('nameInput').value = myName;
+    $('nameSubmit').disabled = !myName;
+  }
+}
 
 // =================================================================
 // 1) name input
@@ -539,13 +566,15 @@ nameSubmit.addEventListener('click', ()=>{
 $('playBtn').addEventListener('click', ()=>{
   subState = 'lobby';
   showScreen('scrLobby');
-  joinOrCreateGame();
+  findOrCreateRoom();
 });
 
 // =================================================================
 // 3) lobby — Firebase real-time
+// IMPORTANT: just FIND/CREATE a room. The user is NOT auto-placed in any slot.
+// They must click + on the slot they want.
 // =================================================================
-async function joinOrCreateGame(){
+async function findOrCreateRoom(){
   const status = $('lobbyStatus');
   status.classList.remove('ready');
   status.textContent = '通信を準備しています…';
@@ -553,7 +582,7 @@ async function joinOrCreateGame(){
     status.textContent = 'Firebase が読み込めません（CDNブロック or オフライン）';
     return;
   }
-  status.textContent = '仲 間 を 待 っ て い ま す';
+  status.textContent = '担当を選んでください';
   try{
     const q = fb.query(
       fb.collection(fb.db, 'games'),
@@ -562,27 +591,33 @@ async function joinOrCreateGame(){
       fb.limit(5)
     );
     const snap = await fb.getDocs(q);
-    let joined = false;
+
+    let target = null;
     for(const d of snap.docs){
       const data = d.data();
       if((data.players || []).length < 3){
-        const ok = await tryJoin(d.id);
-        if(ok){ currentGameId = d.id; joined = true; break; }
+        target = d.id;
+        break;
       }
     }
-    if(!joined){
+
+    if(!target){
+      // create a new empty room — no auto-placement
       const ref = await fb.addDoc(fb.collection(fb.db, 'games'), {
         status: 'waiting',
-        players: [{ id: myId, name: myName, slot: 0 }],
+        players: [],
         currentTurn: 0,
         turnState: 'idle',
         turnScores: [null, null, null],
         turnOffsets: [null, null, null],
+        turnElapsed: [null, null, null],
         createdAt: fb.serverTimestamp()
       });
-      currentGameId = ref.id;
-      mySlot = 0;
+      target = ref.id;
     }
+
+    currentGameId = target;
+    mySlot = -1;
     listenGame(currentGameId);
   }catch(err){
     console.error('[fb]', err);
@@ -590,35 +625,11 @@ async function joinOrCreateGame(){
   }
 }
 
-async function tryJoin(gameId){
-  if(!fb) return false;
-  try{
-    const ref = fb.doc(fb.db, 'games', gameId);
-    return await fb.runTransaction(fb.db, async (tx)=>{
-      const cur = await tx.get(ref);
-      if(!cur.exists()) return false;
-      const data = cur.data();
-      if(data.status !== 'waiting') return false;
-      const players = data.players || [];
-      if(players.length >= 3) return false;
-      const exist = players.find(p => p.id === myId);
-      if(exist){ mySlot = exist.slot; return true; }
-      const slot = players.length;
-      players.push({ id: myId, name: myName, slot });
-      mySlot = slot;
-      const update = { players };
-      if(players.length === 3){
-        update.status = 'playing';
-        update.currentTurn = 0;
-        update.turnState = 'idle';
-      }
-      tx.update(ref, update);
-      return true;
-    });
-  }catch(e){ console.error(e); return false; }
-}
-
-async function leaveGame(gameId, playerId){
+// remove me from a room. behavior depends on room state:
+//   waiting  → just remove me (delete the doc if I was the last one)
+//   playing  → DELETE the entire doc (everyone returns to name input)
+//   finished → just remove me
+async function leaveRoom(gameId, playerId){
   if(!fb) return;
   try{
     const ref = fb.doc(fb.db, 'games', gameId);
@@ -629,13 +640,14 @@ async function leaveGame(gameId, playerId){
       const players = (data.players || []).filter(p => p.id !== playerId);
       if(data.status === 'waiting'){
         if(players.length === 0){ tx.delete(ref); }
-        else{
-          players.forEach((p, i)=>{ p.slot = i; });
-          tx.update(ref, { players });
-        }
+        else{ tx.update(ref, { players }); }
+      }else if(data.status === 'playing'){
+        // someone left mid-game — abort the room. Snapshot will fire as deleted.
+        tx.delete(ref);
       }else{
-        // game already started — keep the document but remove me from the player list
-        tx.update(ref, { players });
+        // finished → just remove me; if last, delete
+        if(players.length === 0){ tx.delete(ref); }
+        else{ tx.update(ref, { players }); }
       }
     });
   }catch(e){ console.error(e); }
@@ -647,7 +659,13 @@ function listenGame(gameId){
   const ref = fb.doc(fb.db, 'games', gameId);
   unsubGame = fb.onSnapshot(ref, (snap)=>{
     if(!snap.exists()){
-      $('lobbyStatus').textContent = '部 屋 が 閉 じ ら れ ま し た';
+      // doc deleted — most likely room aborted (someone left during play, or last person bailed)
+      if(subState === 'play'){
+        resetToName('部屋が解散されました');
+      }else if(subState === 'lobby'){
+        // try to find/create a fresh room
+        findOrCreateRoom();
+      }
       return;
     }
     const data = snap.data();
@@ -671,8 +689,11 @@ function renderLobby(data){
   document.querySelectorAll('.slot-circle').forEach(circle => {
     const s = parseInt(circle.dataset.slot, 10);
     const p = players.find(p => p.slot === s);
+    const iAmInOtherSlot = (mySlot >= 0 && mySlot !== s);
     circle.classList.toggle('filled', !!p);
     circle.classList.toggle('mine', !!(p && p.id === myId));
+    // disable look when slot is taken or i'm already in another slot
+    circle.classList.toggle('disabled', !!p || iAmInOtherSlot);
     const plus = circle.querySelector('.plus');
     let pname = circle.querySelector('.pname');
     if(p){
@@ -692,12 +713,18 @@ function renderLobby(data){
   if(players.length === 3){
     status.textContent = '準 備 完 了';
     status.classList.add('ready');
-  }else{
+  }else if(mySlot >= 0){
     status.textContent = `あ と ${3 - players.length} 人 待 機 中`;
+    status.classList.remove('ready');
+  }else{
+    status.textContent = '担 当 を 選 ん で く だ さ い';
     status.classList.remove('ready');
   }
 }
 
+// click a slot's + to claim it. Enforces:
+//  - target slot must be empty
+//  - at most one slot per player (move from current slot if I had one)
 document.querySelectorAll('.slot-circle').forEach(circle => {
   circle.addEventListener('click', async ()=>{
     if(!currentGameId || !fb) return;
@@ -710,11 +737,16 @@ document.querySelectorAll('.slot-circle').forEach(circle => {
         if(!cur.exists()) return;
         const data = cur.data();
         if(data.status !== 'waiting') return;
-        let players = data.players || [];
-        if(players.find(p => p.slot === targetSlot)) return;   // taken
-        const me = players.find(p => p.id === myId);
-        if(me){ me.slot = targetSlot; }
-        else{ players.push({ id: myId, name: myName, slot: targetSlot }); }
+        let players = (data.players || []).slice();
+        // someone already grabbed this slot? bail.
+        if(players.find(p => p.slot === targetSlot)) return;
+        // remove any existing entry of mine first (so we never double-book me)
+        players = players.filter(p => p.id !== myId);
+        // sanity: no duplicate slots survive
+        const seen = new Set();
+        players = players.filter(p => { if(seen.has(p.slot)) return false; seen.add(p.slot); return true; });
+        // claim
+        players.push({ id: myId, name: myName, slot: targetSlot });
         const update = { players };
         if(players.length === 3){
           update.status = 'playing';
@@ -731,11 +763,9 @@ document.querySelectorAll('.slot-leave').forEach(btn => {
   btn.addEventListener('click', async (e)=>{
     e.stopPropagation();
     if(!currentGameId || !fb) return;
-    await leaveGame(currentGameId, myId);
+    await leaveRoom(currentGameId, myId);
     mySlot = -1;
-    // re-discover or create another lobby
-    subState = 'lobby';
-    joinOrCreateGame();
+    // stay in lobby; if room remains we'll see updated state, otherwise we'll find/create another
   });
 });
 
@@ -745,7 +775,32 @@ document.querySelectorAll('.slot-leave').forEach(btn => {
 function enterPlay(data){
   subState = 'play';
   showScreen('scrPlay');
+  resetTimerDisplay();    // make sure 60 is showing — never 100, never 160
   renderPlay(data);
+}
+
+function resetTimerDisplay(){
+  $('timerNum').textContent = TIMER_TOTAL;
+  $('timerFg').setAttribute('stroke-dashoffset', '0');
+  const C = 2 * Math.PI * 46;
+  $('timerFg').setAttribute('stroke-dasharray', C.toFixed(2));
+  $('timerWrap').classList.remove('hidden');
+}
+
+function buildWatchBanner(data, players, cur, isMyTurn){
+  if(isMyTurn){
+    return `<span class="wb-self">― あ な た の 番 で す ―</span>`;
+  }
+  if(!cur) return '';
+  const next = data.currentTurn + 1;
+  const nextPlayer = players.find(p => p.slot === next);
+  const tag = `(${ROLE_TAGS[data.currentTurn]})`;
+  let html = `<span class="wb-tag">${tag}</span><span class="wb-name">${escapeHtml(cur.name)}</span><span class="wb-soft">を 観 戦 中</span>`;
+  if(nextPlayer){
+    const ntag = `(${ROLE_TAGS[next]})`;
+    html += `<span class="wb-sep">·</span><span class="wb-soft">次 は</span> <span class="wb-tag">${ntag}</span><span class="wb-name">${escapeHtml(nextPlayer.name)}</span>`;
+  }
+  return html;
 }
 
 function renderPlay(data){
@@ -753,45 +808,38 @@ function renderPlay(data){
   const players = (data.players || []).slice().sort((a,b)=> a.slot - b.slot);
   const turnScores = data.turnScores || [null,null,null];
 
-  // header tags
+  // top header — each player tag with their score (nn点)
   const hdr = $('playHeader');
   hdr.innerHTML = '';
   players.forEach(p => {
     const isCurrent = (p.slot === data.currentTurn);
     const isMe = (p.id === myId);
     const status = (turnScores[p.slot] != null) ? '完 了' : (isCurrent ? '料 理 中' : '観 戦 中');
+    const sc = turnScores[p.slot];
+    const scoreHtml = (sc != null) ? `${sc}<span class="pn-pt">点</span>` : '';
     const div = document.createElement('div');
     div.className = 'play-name-tag' + (isCurrent ? ' active' : '');
     div.innerHTML = `
       <div class="pn-tag">(${ROLE_TAGS[p.slot]})</div>
-      <div class="pn-name">${escapeHtml(p.name)}${isMe?' ·':''}</div>
+      <div class="pn-name">${escapeHtml(p.name)}${isMe ? ' ·' : ''}</div>
       <div class="pn-status">${status}</div>
-      <div class="pn-score">${turnScores[p.slot] != null ? turnScores[p.slot] : ''}</div>
+      <div class="pn-score">${scoreHtml}</div>
     `;
     hdr.appendChild(div);
   });
 
+  // current player + team total
   const cur = players.find(p => p.slot === data.currentTurn);
   $('pcName').textContent = cur ? cur.name : '―';
-  const total = (data.turnScores || []).reduce((s,v)=> s + (v || 0), 0);
+  const total = (data.turnScores || []).reduce((s, v) => s + (v || 0), 0);
   $('pcTotal').textContent = total;
 
-  // per-player background
+  // per-player bg
   setPlayerBg(data.currentTurn);
 
-  // watch banner — explicit "1Pを観戦中・次は2P" feedback
-  const banner = $('watchBanner');
+  // watch banner — names bright, the rest soft
   const isMyTurn = (mySlot === data.currentTurn);
-  const next = data.currentTurn + 1;
-  if(isMyTurn){
-    banner.textContent = '― あ な た の 番 で す ―';
-  }else if(cur){
-    const nextPlayer = players.find(p => p.slot === next);
-    const nextLabel = nextPlayer ? `次 は ${ROLE_TAGS[next]} (${nextPlayer.name})` : '';
-    banner.textContent = `${ROLE_TAGS[data.currentTurn]} ${cur.name} を 観 戦 中` + (nextLabel ? `   ·   ${nextLabel}` : '');
-  }else{
-    banner.textContent = '';
-  }
+  $('watchBanner').innerHTML = buildWatchBanner(data, players, cur, isMyTurn);
 
   // action button visibility/state
   const turnDone = turnScores[data.currentTurn] != null;
@@ -803,10 +851,7 @@ function renderPlay(data){
     actionBtn.classList.remove('stop');
     actionBtn.textContent = 'S T A R T';
     playWatching.style.display = 'none';
-    $('timerWrap').classList.remove('hidden');
-    // reset timer display
-    $('timerNum').textContent = TIMER_TOTAL;
-    $('timerFg').setAttribute('stroke-dashoffset', '0');
+    resetTimerDisplay();   // explicit reset before starting — prevents stale "100/160" on PC
   }else if(isMyTurn && data.turnState === 'running'){
     actionBtn.style.display = '';
     actionBtn.disabled = false;
@@ -818,10 +863,12 @@ function renderPlay(data){
     playWatching.style.display = '';
   }
 
-  // timer driver
+  // timer driver (everyone runs it locally based on server timestamp)
   if(data.turnState === 'running' && data.timerStart){
     if(!timerHandle){
-      const startMs = data.timerStart.toMillis ? data.timerStart.toMillis() : Date.now();
+      const startMs = (data.timerStart && data.timerStart.toMillis)
+        ? data.timerStart.toMillis()
+        : Date.now();
       runTimer(startMs);
     }
   }else if(data.turnState !== 'running' && timerHandle){
@@ -829,17 +876,29 @@ function renderPlay(data){
     timerHandle = null;
   }
 
-  // last-turn result text (briefly shown between turns)
-  const lastDoneSlot = (data.turnScores || []).map((v,i)=> v != null ? i : -1).filter(i => i >= 0).pop();
+  // last completed turn — show "name : ELAPSED秒(±OFF秒) → SCORE点 / 100"
+  const elapsedArr = data.turnElapsed || [null,null,null];
+  const lastDoneSlot = (data.turnScores || [])
+    .map((v, i) => v != null ? i : -1)
+    .filter(i => i >= 0)
+    .pop();
+
   if(lastDoneSlot != null && lastDoneSlot >= 0 && data.turnState === 'idle'){
-    const off = data.turnOffsets ? data.turnOffsets[lastDoneSlot] : null;
-    const sc = turnScores[lastDoneSlot];
     const ply = players.find(p => p.slot === lastDoneSlot);
+    const sc  = turnScores[lastDoneSlot];
+    const el  = elapsedArr[lastDoneSlot];                            // actual elapsed seconds
+    const off = data.turnOffsets ? data.turnOffsets[lastDoneSlot] : null;  // signed offset, target=0 remaining, so off = remaining
+    // deviation we display in parens = elapsed - TIMER_TOTAL (positive = late)
+    const dev = (el != null) ? (el - TIMER_TOTAL) : (off != null ? -off : null);
+    const elTxt  = (el  != null) ? `${el.toFixed(1)}秒`  : '―';
+    const devTxt = (dev != null) ? `(${dev > 0 ? '+' : ''}${dev.toFixed(1)}秒)` : '';
     $('turnResult').innerHTML = `
-      <span>${escapeHtml(ply ? ply.name : '')} ：</span>
-      <span class="off">${off != null ? (off > 0 ? '+' : '') + off.toFixed(1) + '秒' : ''}</span>
-      <span> → </span>
-      <span class="scr">${sc}点</span>
+      <span class="tr-name">${escapeHtml(ply ? ply.name : '')} ：</span>
+      <span class="tr-elapsed">${elTxt}</span>
+      <span class="tr-dev">${devTxt}</span>
+      <span class="tr-arrow">→</span>
+      <span class="tr-score">${sc}</span><span class="tr-pt">点</span>
+      <span class="tr-out">/100</span>
     `;
   }else{
     $('turnResult').innerHTML = '';
@@ -855,7 +914,7 @@ function runTimer(startMs){
   const FG = $('timerFg');
   const NUM = $('timerNum');
   const wrap = $('timerWrap');
-  const C = 2 * Math.PI * 46;     // circumference matches r=46
+  const C = 2 * Math.PI * 46;
   FG.setAttribute('stroke-dasharray', C.toFixed(2));
   timerStopped = false;
   if(timerHandle) clearInterval(timerHandle);
@@ -864,8 +923,10 @@ function runTimer(startMs){
     const remaining = TIMER_TOTAL - elapsed;
     if(remaining > TIMER_VISIBLE_UNTIL){
       wrap.classList.remove('hidden');
-      NUM.textContent = Math.max(0, Math.ceil(remaining));
-      const ratio = Math.max(0, remaining / TIMER_TOTAL);
+      // clamp the display so it can never read above TIMER_TOTAL — kills the "starts from 100/160" stale-display bug
+      const display = Math.max(0, Math.min(TIMER_TOTAL, Math.ceil(remaining)));
+      NUM.textContent = display;
+      const ratio = Math.max(0, Math.min(1, remaining / TIMER_TOTAL));
       FG.setAttribute('stroke-dashoffset', (C * (1 - ratio)).toFixed(2));
     }else{
       wrap.classList.add('hidden');
@@ -877,6 +938,7 @@ $('actionBtn').addEventListener('click', async ()=>{
   if(!currentGameSnap || !currentGameId || !fb) return;
   if(mySlot !== currentGameSnap.currentTurn) return;
   if(currentGameSnap.turnState === 'idle'){
+    // START — record server-side start time
     try{
       await fb.updateDoc(fb.doc(fb.db, 'games', currentGameId), {
         turnState: 'running',
@@ -884,14 +946,15 @@ $('actionBtn').addEventListener('click', async ()=>{
       });
     }catch(e){ console.error(e); }
   }else if(currentGameSnap.turnState === 'running'){
+    // STOP — compute elapsed/offset/score and write
     if(timerStopped) return;
     timerStopped = true;
     const startMs = (currentGameSnap.timerStart && currentGameSnap.timerStart.toMillis)
       ? currentGameSnap.timerStart.toMillis()
       : Date.now();
     const elapsed = (Date.now() - startMs) / 1000;
-    const off = TIMER_TOTAL - elapsed;                                        // seconds from target (signed)
-    const score = Math.max(0, Math.round(100 - Math.abs(off) * 10));          // 100 max, drops 10/sec
+    const off = TIMER_TOTAL - elapsed;                          // remaining at stop (=signed offset from "stop at 0")
+    const score = Math.max(0, Math.round(100 - Math.abs(off) * 10));
     try{
       const ref = fb.doc(fb.db, 'games', currentGameId);
       await fb.runTransaction(fb.db, async (tx)=>{
@@ -900,10 +963,12 @@ $('actionBtn').addEventListener('click', async ()=>{
         const d = cur.data();
         const ts  = (d.turnScores  || [null,null,null]).slice();
         const tos = (d.turnOffsets || [null,null,null]).slice();
+        const tel = (d.turnElapsed || [null,null,null]).slice();
         ts[d.currentTurn]  = score;
         tos[d.currentTurn] = Number(off.toFixed(1));
+        tel[d.currentTurn] = Number(elapsed.toFixed(1));
         const next = d.currentTurn + 1;
-        const update = { turnScores: ts, turnOffsets: tos, turnState: 'idle' };
+        const update = { turnScores: ts, turnOffsets: tos, turnElapsed: tel, turnState: 'idle' };
         if(next >= 3){ update.status = 'finished'; }
         else { update.currentTurn = next; }
         tx.update(ref, update);
@@ -915,7 +980,6 @@ $('actionBtn').addEventListener('click', async ()=>{
 // =================================================================
 // 5) results
 // =================================================================
-// add or tweak tiers as you like
 function classifyScore(total){
   if(total >= 270) return { img:'scr1.png', comment:'完 璧 な 三 人 の 連 携 — 中 華 神 の 域' };
   if(total >= 220) return { img:'scr2.png', comment:'息 ぴ っ た り の 上 級 コ ン ビ' };
@@ -929,11 +993,11 @@ function showResults(data){
   subState = 'results';
   showScreen('scrResults');
   $('resultsBox').classList.add('in');
-  clearPlayerBg();   // back to base atmosphere for results
+  clearPlayerBg();
 
   const players = (data.players || []).slice().sort((a,b)=> a.slot - b.slot);
   const ts = data.turnScores || [];
-  const total = ts.reduce((s,v)=> s + (v || 0), 0);
+  const total = ts.reduce((s, v) => s + (v || 0), 0);
   const { img, comment } = classifyScore(total);
   resultsImageUrl = img;
   $('rImg').style.backgroundImage = `url('${img}')`;
@@ -946,7 +1010,7 @@ function showResults(data){
     sc.innerHTML += `
       <div class="rs-block">
         <div class="rsl">${ROLE_TAGS[p.slot]}</div>
-        <div class="rsv">${v != null ? v : '-'}</div>
+        <div class="rsv">${v != null ? v : '-'}<span class="rsv-pt">点</span></div>
         <div class="rsn">${escapeHtml(p.name)}</div>
       </div>
     `;
@@ -954,120 +1018,329 @@ function showResults(data){
   sc.innerHTML += `
     <div class="rs-block total">
       <div class="rsl">total</div>
-      <div class="rsv">${total}</div>
+      <div class="rsv">${total}<span class="rsv-pt">/ 300</span></div>
     </div>
   `;
+
+  // capture results for the photo overlay
+  savedResultData = {
+    players: players.map(p => ({ slot: p.slot, name: p.name, score: ts[p.slot] })),
+    total,
+    img,
+    comment
+  };
 }
 
 $('toPhotoBtn').addEventListener('click', ()=> openPhoto());
-$('resultsHomeBtn').addEventListener('click', goEventHome);
 
 // =================================================================
-// 6) photo composite — red chroma key, dish image fitted behind the red region
+// 6) photo composite — tap a red region to make THAT region the dish portal
 // =================================================================
 const photoCanvas = $('photoCanvas');
 const pctx = photoCanvas.getContext('2d');
 let userImg = null;
+let originalImageData = null;       // clean copy of the loaded photo
 let resultImg = null;
+let activeBounds = null;            // bounds of the currently-selected red region
+
+function isRedPixel(r, g, b){
+  return r > 140 && g < 110 && b < 110 && (r - Math.max(g, b)) > 40;
+}
 
 function openPhoto(){
   subState = 'photo';
   showScreen('scrPhoto');
+  // reset for a fresh composite session
+  userImg = null;
+  originalImageData = null;
+  activeBounds = null;
+  $('savePhotoBtn').disabled = true;
+
+  // preload the dish image so it's ready when the user taps
   resultImg = new Image();
   resultImg.crossOrigin = 'anonymous';
-  resultImg.onload = ()=>{ if(userImg) renderPhoto(); };
   resultImg.src = resultsImageUrl || 'scr1.png';
-  $('savePhotoBtn').disabled = true;
+
+  // show setu.png as the explanation placeholder until the user loads a photo
+  loadPlaceholder();
+  $('photoSub').textContent = '下の説明画像（setu.png）の通り、赤い ● を入れた写真を読み込んでください';
+  $('photoSub').classList.remove('tap-prompt');
+}
+
+function loadPlaceholder(){
+  const setu = new Image();
+  setu.onload = ()=>{
+    photoCanvas.width  = setu.naturalWidth;
+    photoCanvas.height = setu.naturalHeight;
+    fitCanvasToStage();
+    pctx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
+    pctx.drawImage(setu, 0, 0);
+  };
+  setu.onerror = ()=>{
+    // setu.png missing — paint a simple instructional fallback
+    photoCanvas.width  = 800;
+    photoCanvas.height = 600;
+    fitCanvasToStage();
+    pctx.fillStyle = '#0a0d13';
+    pctx.fillRect(0, 0, 800, 600);
+    pctx.fillStyle = 'rgba(244,246,251,.55)';
+    pctx.font = '300 22px "Noto Serif JP", serif';
+    pctx.textAlign = 'center';
+    pctx.fillText('赤い ● を入れた写真を読み込んでください', 400, 290);
+    pctx.font = '300 14px "Noto Serif JP", serif';
+    pctx.fillStyle = 'rgba(244,246,251,.35)';
+    pctx.fillText('（説明画像 setu.png を同じフォルダに置くと、ここに表示されます）', 400, 320);
+    pctx.textAlign = 'start';
+  };
+  setu.src = 'setu.png';
+}
+
+function fitCanvasToStage(){
+  const stage = photoCanvas.parentElement;
+  const sw = stage.clientWidth, sh = stage.clientHeight;
+  const ar = photoCanvas.width / photoCanvas.height;
+  let cw, ch;
+  if(sw / sh > ar){ ch = sh; cw = sh * ar; }
+  else            { cw = sw; ch = sw / ar; }
+  photoCanvas.style.width  = cw + 'px';
+  photoCanvas.style.height = ch + 'px';
 }
 
 $('fileInput').addEventListener('change', e => {
   const f = e.target.files && e.target.files[0];
   if(!f) return;
   const url = URL.createObjectURL(f);
-  userImg = new Image();
-  userImg.onload = ()=>{ renderPhoto(); URL.revokeObjectURL(url); };
-  userImg.src = url;
+  const img = new Image();
+  img.onload = ()=>{
+    userImg = img;
+    photoCanvas.width  = img.naturalWidth;
+    photoCanvas.height = img.naturalHeight;
+    fitCanvasToStage();
+    pctx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
+    pctx.drawImage(img, 0, 0);
+    originalImageData = pctx.getImageData(0, 0, photoCanvas.width, photoCanvas.height);
+    activeBounds = null;
+    $('savePhotoBtn').disabled = true;
+    $('photoSub').textContent = 'お 皿 を タ ッ プ し て く だ さ い';
+    $('photoSub').classList.add('tap-prompt');
+    URL.revokeObjectURL(url);
+  };
+  img.onerror = ()=>{
+    showToast('画像を読み込めませんでした');
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
 });
 
-function renderPhoto(){
-  if(!userImg) return;
-  // fit canvas display to stage while keeping native pixel resolution
-  const stage = photoCanvas.parentElement;
-  const stageW = stage.clientWidth;
-  const stageH = stage.clientHeight;
-  const ar = userImg.width / userImg.height;
-  let cw, ch;
-  if(stageW / stageH > ar){ ch = stageH; cw = stageH * ar; }
-  else                    { cw = stageW; ch = stageW / ar; }
-  photoCanvas.width  = userImg.width;
-  photoCanvas.height = userImg.height;
-  photoCanvas.style.width  = cw + 'px';
-  photoCanvas.style.height = ch + 'px';
-  pctx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
-  pctx.drawImage(userImg, 0, 0);
+// flood fill from (sx,sy) on a fresh copy of originalImageData; returns
+// { filledIndices: Int32Array, bounds: {minX,minY,maxX,maxY} } or null if no red there.
+function floodFillRedFromPoint(sx, sy){
+  if(!originalImageData) return null;
+  const w = photoCanvas.width, h = photoCanvas.height;
+  if(sx < 0 || sy < 0 || sx >= w || sy >= h) return null;
+  const src = originalImageData.data;
+  const visited = new Uint8Array(w * h);
+  const stack = [];
+  const filled = [];
+  let minX = sx, minY = sy, maxX = sx, maxY = sy;
 
-  // chroma-key: knock out red pixels, also track the bounding box of the cut-out
-  const idata = pctx.getImageData(0, 0, photoCanvas.width, photoCanvas.height);
-  const px = idata.data;
-  let minX = photoCanvas.width, minY = photoCanvas.height;
-  let maxX = 0, maxY = 0, redCount = 0;
-  for(let y = 0; y < photoCanvas.height; y++){
-    for(let x = 0; x < photoCanvas.width; x++){
-      const i = (y * photoCanvas.width + x) * 4;
-      const r = px[i], g = px[i+1], b = px[i+2];
-      if(r > 140 && g < 110 && b < 110 && (r - Math.max(g, b)) > 40){
-        px[i+3] = 0;       // make transparent
-        if(x < minX) minX = x;
-        if(y < minY) minY = y;
-        if(x > maxX) maxX = x;
-        if(y > maxY) maxY = y;
-        redCount++;
-      }
-    }
+  function tryPush(x, y){
+    if(x < 0 || x >= w || y < 0 || y >= h) return;
+    const idx = y * w + x;
+    if(visited[idx]) return;
+    const i = idx * 4;
+    if(!isRedPixel(src[i], src[i+1], src[i+2])) return;
+    visited[idx] = 1;
+    stack.push(x, y);
   }
-  pctx.putImageData(idata, 0, 0);
 
-  if(redCount > 50 && resultImg && resultImg.complete && resultImg.naturalWidth){
-    // composite the dish image *behind* the photo at the cut-out region
-    const rw = maxX - minX, rh = maxY - minY;
-    const off = document.createElement('canvas');
-    off.width  = photoCanvas.width;
-    off.height = photoCanvas.height;
-    const octx = off.getContext('2d');
-    const ir = resultImg.width / resultImg.height;
+  // seed must itself be red
+  const seedIdx = (sy * w + sx) * 4;
+  if(!isRedPixel(src[seedIdx], src[seedIdx+1], src[seedIdx+2])) return null;
+  visited[sy * w + sx] = 1;
+  stack.push(sx, sy);
+
+  while(stack.length){
+    const y = stack.pop();
+    const x = stack.pop();
+    filled.push(x, y);
+    if(x < minX) minX = x;
+    if(y < minY) minY = y;
+    if(x > maxX) maxX = x;
+    if(y > maxY) maxY = y;
+    tryPush(x + 1, y);
+    tryPush(x - 1, y);
+    tryPush(x, y + 1);
+    tryPush(x, y - 1);
+  }
+
+  if(filled.length < 50) return null;     // ignore pinprick-tiny regions
+  return {
+    filled,        // [x0,y0, x1,y1, ...]
+    bounds: { minX, minY, maxX, maxY }
+  };
+}
+
+// re-render the canvas with ONLY the tapped-region transparent + dish behind
+function renderComposite(region){
+  if(!originalImageData || !region) return;
+  const w = photoCanvas.width, h = photoCanvas.height;
+  // start from a clean copy of the original photo
+  const idata = pctx.createImageData(w, h);
+  idata.data.set(originalImageData.data);
+  // poke holes in the tapped region only
+  for(let i = 0; i < region.filled.length; i += 2){
+    const x = region.filled[i];
+    const y = region.filled[i + 1];
+    const idx = (y * w + x) * 4;
+    idata.data[idx + 3] = 0;
+  }
+
+  // dish goes BEHIND, photo with hole on top
+  const off = document.createElement('canvas');
+  off.width = w; off.height = h;
+  const octx = off.getContext('2d');
+
+  if(resultImg && resultImg.complete && resultImg.naturalWidth){
+    const b = region.bounds;
+    const rw = b.maxX - b.minX;
+    const rh = b.maxY - b.minY;
+    const ir = resultImg.naturalWidth / resultImg.naturalHeight;
     const br = rw / rh;
     let dw, dh, dx, dy;
-    if(ir > br){ dh = rh; dw = rh * ir; dx = minX + (rw - dw) / 2; dy = minY; }
-    else      { dw = rw; dh = rw / ir; dx = minX; dy = minY + (rh - dh) / 2; }
-    octx.drawImage(resultImg, dx, dy, dw, dh);   // dish first (back)
-    octx.drawImage(photoCanvas, 0, 0);           // photo with hole on top (front)
-    pctx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
-    pctx.drawImage(off, 0, 0);
-    $('savePhotoBtn').disabled = false;
-  }else{
-    $('savePhotoBtn').disabled = (redCount > 50) ? false : true;
+    if(ir > br){ dh = rh; dw = rh * ir; dx = b.minX + (rw - dw) / 2; dy = b.minY; }
+    else      { dw = rw; dh = rw / ir; dx = b.minX; dy = b.minY + (rh - dh) / 2; }
+    octx.drawImage(resultImg, dx, dy, dw, dh);
   }
+
+  // photo with hole on top
+  const photoCnv = document.createElement('canvas');
+  photoCnv.width = w; photoCnv.height = h;
+  photoCnv.getContext('2d').putImageData(idata, 0, 0);
+  octx.drawImage(photoCnv, 0, 0);
+
+  // commit to display canvas
+  pctx.clearRect(0, 0, w, h);
+  pctx.drawImage(off, 0, 0);
+
+  activeBounds = region.bounds;
+  $('savePhotoBtn').disabled = false;
+}
+
+photoCanvas.addEventListener('click', e => {
+  if(!userImg || !originalImageData) return;
+  // map client point → canvas pixel space
+  const rect = photoCanvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left) * (photoCanvas.width  / rect.width));
+  const y = Math.floor((e.clientY - rect.top)  * (photoCanvas.height / rect.height));
+  const region = floodFillRedFromPoint(x, y);
+  if(!region){
+    showToast('赤い部分をタップしてください');
+    return;
+  }
+  renderComposite(region);
+  $('photoSub').textContent = '別の赤い部分をタップすると、選択が切り替わります';
+  $('photoSub').classList.remove('tap-prompt');
+});
+
+// =================================================================
+// save — render an off-screen canvas with overlay text in the top-left
+// =================================================================
+function buildSaveCanvas(){
+  const w = photoCanvas.width, h = photoCanvas.height;
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const octx = out.getContext('2d');
+  octx.drawImage(photoCanvas, 0, 0);
+  if(!savedResultData) return out;
+
+  // size everything proportional to the image so it looks consistent on phone vs DSLR shots
+  const baseFs = Math.max(14, Math.min(w, h) / 36);
+  const lineH = baseFs * 1.55;
+  const padding = baseFs * 1.6;
+
+  octx.save();
+  // soft shadow under the text — readable but not heavy
+  octx.shadowColor   = 'rgba(0,0,0,.55)';
+  octx.shadowBlur    = baseFs * 0.5;
+  octx.shadowOffsetX = 0;
+  octx.shadowOffsetY = baseFs * 0.18;
+  octx.textBaseline  = 'alphabetic';
+
+  let y = padding + baseFs * 0.85;
+
+  // — RESULT —
+  octx.font = `300 ${(baseFs * 0.55).toFixed(0)}px "Cormorant Garamond", serif`;
+  octx.fillStyle = 'rgba(255,255,255,.65)';
+  octx.fillText('— RESULT —', padding, y);
+  y += lineH * 0.85;
+
+  // event title
+  octx.font = `400 ${(baseFs * 1.2).toFixed(0)}px "Noto Serif JP", serif`;
+  octx.fillStyle = 'rgba(255,255,255,.95)';
+  octx.fillText('第 一 回 コ ス プ レ イ ベ ン ト', padding, y);
+  y += lineH * 0.95;
+
+  // movie + status sub
+  octx.font = `300 ${(baseFs * 0.65).toFixed(0)}px "Noto Serif JP", serif`;
+  octx.fillStyle = 'rgba(255,255,255,.65)';
+  octx.fillText('『 天 気 の 子 』 非 公 式  /  三 人 で チ ャ ー ハ ン 作 り', padding, y);
+  y += lineH * 1.4;
+
+  // each player's score
+  octx.font = `300 ${(baseFs * 0.85).toFixed(0)}px "Noto Serif JP", serif`;
+  octx.fillStyle = 'rgba(255,255,255,.9)';
+  for(const p of savedResultData.players){
+    const sc = (p.score != null) ? `${p.score}点` : '― 点';
+    // draw label and score with a wide gap so the score sits in a visual column
+    const tag = `(${ROLE_TAGS[p.slot]})`;
+    const label = `${tag} ${p.name}`;
+    octx.fillText(label, padding, y);
+    octx.fillText(sc, padding + baseFs * 9.5, y);
+    y += lineH * 0.95;
+  }
+
+  // total
+  y += lineH * 0.3;
+  octx.font = `300 ${(baseFs * 0.55).toFixed(0)}px "Cormorant Garamond", serif`;
+  octx.fillStyle = 'rgba(255,255,255,.55)';
+  octx.fillText('TOTAL', padding, y);
+  y += lineH * 0.85;
+  octx.font = `400 ${(baseFs * 1.5).toFixed(0)}px "Cormorant Garamond", serif`;
+  octx.fillStyle = 'rgba(255,255,255,.95)';
+  octx.fillText(`${savedResultData.total}`, padding, y);
+  octx.font = `300 ${(baseFs * 0.6).toFixed(0)}px "Noto Serif JP", serif`;
+  octx.fillStyle = 'rgba(255,255,255,.55)';
+  octx.fillText('点 / 300', padding + baseFs * 2.5, y);
+
+  octx.restore();
+  return out;
 }
 
 $('savePhotoBtn').addEventListener('click', ()=>{
   try{
-    const dataUrl = photoCanvas.toDataURL('image/png');
+    const out = buildSaveCanvas();
+    const dataUrl = out.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = dataUrl;
     a.download = `chahan_${Date.now()}.png`;
     a.click();
-    // confirmation feedback, then auto-return to event home
     const btn = $('savePhotoBtn');
-    const orig = btn.textContent;
     btn.textContent = '保 存 し ま し た';
     btn.disabled = true;
-    setTimeout(()=>{ goEventHome(); }, 900);
-  }catch(e){ alert('保存に失敗しました：' + e.message); }
+    setTimeout(()=>{
+      // after saving, return to the very start (name input)
+      resetToName();
+      // restore button label for next time
+      btn.textContent = '保　存';
+    }, 1100);
+  }catch(e){
+    alert('保存に失敗しました：' + e.message);
+  }
 });
-$('photoHomeBtn').addEventListener('click', goEventHome);
 
 // =================================================================
-// rain canvas — atmospheric layer (subtle, doesn't fight the bg)
+// rain canvas — atmospheric layer
 // =================================================================
 window.__bootStep = 'rain-canvas';
 const canvas = $('rain-canvas');
@@ -1093,7 +1366,7 @@ function makeDrop(L){
 }
 function initDrops(){
   drops = [];
-  const baseCount = Math.min(360, Math.max(120, Math.floor(W*H/5400)));   // a touch lighter than home
+  const baseCount = Math.min(360, Math.max(120, Math.floor(W*H/5400)));
   LAYERS.forEach(L => {
     const n = Math.floor(baseCount * L.share);
     for(let i = 0; i < n; i++) drops.push(makeDrop(L));
@@ -1147,11 +1420,11 @@ resize();
 requestAnimationFrame(tick);
 
 // =================================================================
-// cleanup if user closes tab while in a game
+// cleanup if user closes tab while in a game/lobby
 // =================================================================
 window.addEventListener('beforeunload', ()=>{
-  if(currentGameId && mySlot >= 0 && fb){
-    try{ leaveGame(currentGameId, myId); }catch(e){}
+  if(currentGameId && fb){
+    try{ leaveRoom(currentGameId, myId); }catch(e){}
   }
 });
 

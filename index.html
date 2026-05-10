@@ -78,7 +78,7 @@
   }
   .player-bg.show{opacity:.85}
 
-  #rain-canvas{position:fixed;inset:0;z-index:3;pointer-events:none}
+  /* rain canvas removed (per spec) */
 
   .vignette{position:fixed;inset:0;z-index:5;pointer-events:none;background:radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,.55) 85%, rgba(0,0,0,.85) 100%)}
   .grain{
@@ -306,7 +306,10 @@
 
   <div class="bg-fallback"></div>
   <div class="player-bg" id="playerBg"></div>
-  <canvas id="rain-canvas"></canvas>
+  <!-- rain canvas removed -->
+
+  <!-- cooking BGM — plays in sync for the whole group while a turn is running -->
+  <audio id="cookAudio" src="cookbgm.mp3" loop preload="auto"></audio>
   <div class="grain"></div>
   <div class="vignette"></div>
 
@@ -497,6 +500,8 @@ let mySlot = -1;
 let unsubGame = null;
 let timerHandle = null;
 let timerStopped = false;
+let localTimerStart = null;     // local clock time when we observed turnState transition to 'running' (avoids client-server clock drift bug)
+let cookPlaying = false;
 let resultsImageUrl = '';
 let savedResultData = null;          // { players, scores, total, img } captured at showResults
 
@@ -506,6 +511,31 @@ let savedResultData = null;          // { players, scores, total, img } captured
 function showScreen(id){
   document.querySelectorAll('.gscr').forEach(s => s.classList.remove('in'));
   $(id).classList.add('in');
+}
+
+// cookbgm — plays for everyone in the group while a turn is running.
+// idempotent so it's safe to call from every snapshot tick.
+function startCookBgm(){
+  if(cookPlaying) return;
+  const a = $('cookAudio');
+  if(!a) return;
+  try{
+    a.currentTime = 0;
+    a.volume = 0.7;
+    const p = a.play();
+    if(p && p.catch) p.catch(()=>{});
+    cookPlaying = true;
+  }catch(e){}
+}
+function stopCookBgm(){
+  if(!cookPlaying) return;
+  const a = $('cookAudio');
+  if(!a) return;
+  try{
+    a.pause();
+    a.currentTime = 0;
+  }catch(e){}
+  cookPlaying = false;
 }
 
 const playerBg = $('playerBg');
@@ -527,6 +557,7 @@ function clearPlayerBg(){ playerBg.classList.remove('show'); }
 function resetToName(notice){
   if(unsubGame){ try{ unsubGame(); }catch(e){} unsubGame = null; }
   if(timerHandle){ clearInterval(timerHandle); timerHandle = null; }
+  stopCookBgm();
   currentGameId = null;
   currentGameSnap = null;
   mySlot = -1;
@@ -863,17 +894,22 @@ function renderPlay(data){
     playWatching.style.display = '';
   }
 
-  // timer driver (everyone runs it locally based on server timestamp)
-  if(data.turnState === 'running' && data.timerStart){
+  // Timer driver — uses LOCAL clock, so PC <-> server clock drift can't lock the display at 60.
+  // The doc field data.timerStart is just used as the "running started" flag.
+  // cookbgm plays in lockstep with turnState across the whole group.
+  if(data.turnState === 'running'){
     if(!timerHandle){
-      const startMs = (data.timerStart && data.timerStart.toMillis)
-        ? data.timerStart.toMillis()
-        : Date.now();
-      runTimer(startMs);
+      localTimerStart = Date.now();
+      runTimer(localTimerStart);
     }
-  }else if(data.turnState !== 'running' && timerHandle){
-    clearInterval(timerHandle);
-    timerHandle = null;
+    startCookBgm();
+  }else{
+    if(timerHandle){
+      clearInterval(timerHandle);
+      timerHandle = null;
+    }
+    localTimerStart = null;
+    stopCookBgm();
   }
 
   // last completed turn — show "name : ELAPSED秒(±OFF秒) → SCORE点 / 100"
@@ -949,9 +985,8 @@ $('actionBtn').addEventListener('click', async ()=>{
     // STOP — compute elapsed/offset/score and write
     if(timerStopped) return;
     timerStopped = true;
-    const startMs = (currentGameSnap.timerStart && currentGameSnap.timerStart.toMillis)
-      ? currentGameSnap.timerStart.toMillis()
-      : Date.now();
+    // use OUR local start time so client-server clock drift can't break the timing on PC
+    const startMs = localTimerStart || Date.now();
     const elapsed = (Date.now() - startMs) / 1000;
     const off = TIMER_TOTAL - elapsed;                          // remaining at stop (=signed offset from "stop at 0")
     const score = Math.max(0, Math.round(100 - Math.abs(off) * 10));
@@ -994,6 +1029,7 @@ function showResults(data){
   showScreen('scrResults');
   $('resultsBox').classList.add('in');
   clearPlayerBg();
+  stopCookBgm();
 
   const players = (data.players || []).slice().sort((a,b)=> a.slot - b.slot);
   const ts = data.turnScores || [];
@@ -1260,11 +1296,27 @@ function buildSaveCanvas(){
   const padding = baseFs * 1.6;
 
   octx.save();
-  // soft shadow under the text — readable but not heavy
-  octx.shadowColor   = 'rgba(0,0,0,.55)';
-  octx.shadowBlur    = baseFs * 0.5;
+
+  // soft fade backdrop just behind the text region — fades from a dark cloud
+  // (top-left) out to fully transparent, so white text never disappears into the photo.
+  const lines = savedResultData.players.length + 6;        // overline + title + sub + spacer + N players + spacer + total label + total
+  const backdropW = baseFs * 18;
+  const backdropH = lineH * lines + padding * 1.6;
+  const cx = padding + baseFs * 6.5;
+  const cy = padding + backdropH * 0.42;
+  const fadeR = Math.max(backdropW, backdropH);
+  const fade = octx.createRadialGradient(cx, cy, baseFs * 1.2, cx, cy, fadeR);
+  fade.addColorStop(0,    'rgba(0,0,0,.55)');
+  fade.addColorStop(0.55, 'rgba(0,0,0,.22)');
+  fade.addColorStop(1,    'rgba(0,0,0,0)');
+  octx.fillStyle = fade;
+  octx.fillRect(0, 0, Math.min(w, backdropW * 1.5), Math.min(h, backdropH * 1.4));
+
+  // shadow on the text on top of the backdrop — soft and just under the glyphs
+  octx.shadowColor   = 'rgba(0,0,0,.7)';
+  octx.shadowBlur    = baseFs * 0.6;
   octx.shadowOffsetX = 0;
-  octx.shadowOffsetY = baseFs * 0.18;
+  octx.shadowOffsetY = baseFs * 0.22;
   octx.textBaseline  = 'alphabetic';
 
   let y = padding + baseFs * 0.85;
@@ -1340,84 +1392,8 @@ $('savePhotoBtn').addEventListener('click', ()=>{
 });
 
 // =================================================================
-// rain canvas — atmospheric layer
+// (rain canvas removed per spec)
 // =================================================================
-window.__bootStep = 'rain-canvas';
-const canvas = $('rain-canvas');
-const ctx = canvas.getContext('2d');
-let W = 0, H = 0, dpr = 1, drops = [];
-const LAYERS = [
-  { share:.30, sMin:9,  sMax:15, lMin:5,  lMax:13, oMin:.05, oMax:.12, wMin:.5, wMax:.7, slMin:-.4, slMax:-.9 },
-  { share:.40, sMin:20, sMax:34, lMin:14, lMax:30, oMin:.10, oMax:.22, wMin:.6, wMax:.9, slMin:-.7, slMax:-1.4 },
-  { share:.30, sMin:42, sMax:80, lMin:30, lMax:70, oMin:.22, oMax:.40, wMin:.9, wMax:1.3, slMin:-1.0, slMax:-2.0 }
-];
-function rand(a,b){ return a + Math.random()*(b-a); }
-function makeDrop(L){
-  return {
-    x: Math.random()*W,
-    y: Math.random()*H - H,
-    len: rand(L.lMin, L.lMax),
-    speed: rand(L.sMin, L.sMax),
-    opacity: rand(L.oMin, L.oMax),
-    width: rand(L.wMin, L.wMax),
-    slant: rand(L.slMin, L.slMax),
-    layer: L
-  };
-}
-function initDrops(){
-  drops = [];
-  const baseCount = Math.min(360, Math.max(120, Math.floor(W*H/5400)));
-  LAYERS.forEach(L => {
-    const n = Math.floor(baseCount * L.share);
-    for(let i = 0; i < n; i++) drops.push(makeDrop(L));
-  });
-}
-function resize(){
-  dpr = Math.min(2, window.devicePixelRatio || 1);
-  W = innerWidth; H = innerHeight;
-  canvas.width  = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width  = W + 'px';
-  canvas.style.height = H + 'px';
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.scale(dpr, dpr);
-  initDrops();
-}
-function tick(){
-  ctx.clearRect(0, 0, W, H);
-  ctx.lineCap = 'round';
-  for(let i = 0; i < drops.length; i++){
-    const d = drops[i];
-    ctx.lineWidth = d.width;
-    const x2 = d.x + d.slant, y2 = d.y + d.len;
-    const g = ctx.createLinearGradient(d.x, d.y, x2, y2);
-    g.addColorStop(0, 'rgba(225,238,255,0)');
-    g.addColorStop(1, `rgba(230,240,255,${d.opacity})`);
-    ctx.strokeStyle = g;
-    ctx.beginPath();
-    ctx.moveTo(d.x, d.y);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    d.x += d.slant * .35;
-    d.y += d.speed;
-    if(d.y > H){
-      d.y = -d.len - rand(0, 100);
-      d.x = Math.random() * W;
-      d.len     = rand(d.layer.lMin, d.layer.lMax);
-      d.speed   = rand(d.layer.sMin, d.layer.sMax);
-      d.opacity = rand(d.layer.oMin, d.layer.oMax);
-      d.slant   = rand(d.layer.slMin, d.layer.slMax);
-    }
-  }
-  requestAnimationFrame(tick);
-}
-let resizeT = null;
-window.addEventListener('resize', ()=>{
-  clearTimeout(resizeT);
-  resizeT = setTimeout(resize, 120);
-});
-resize();
-requestAnimationFrame(tick);
 
 // =================================================================
 // cleanup if user closes tab while in a game/lobby

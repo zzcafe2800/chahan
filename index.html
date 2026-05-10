@@ -1033,11 +1033,11 @@ $('actionBtn').addEventListener('click', async ()=>{
 // 5) results
 // =================================================================
 function classifyScore(total){
-  if(total >= 270) return { img:'scr1.png', comment:'完 璧 な 三 人 の 連 携 — 中 華 神 の 域' };
-  if(total >= 220) return { img:'scr2.png', comment:'息 ぴ っ た り の 上 級 コ ン ビ' };
+  if(total >= 270) return { img:'scr1.png', comment:'完 璧 な 三 人 の 連 携！' };
+  if(total >= 220) return { img:'scr2.png', comment:'息 ぴ っ た り コ ン ビ' };
   if(total >= 160) return { img:'scr3.png', comment:'ま あ ま あ の 仕 上 が り' };
   if(total >= 100) return { img:'scr4.png', comment:'う ー ん … 練 習 が 必 要 で す' };
-  return                      { img:'scr5.png', comment:'お し い ！ 次 こ そ' };
+  return                      { img:'scr5.png', comment:' 次 こ そ…！' };
 }
 
 function showResults(data){
